@@ -129,7 +129,7 @@
         <div id="hits-empty" class="hint" style="margin:0;">Postings found in this batch land here — company, role, date, and the POC to contact.</div>
         <div style="overflow-x:auto;">
           <table id="hits-table" style="display:none;">
-            <thead><tr><th>Company</th><th>Role</th><th>Posted</th><th>POC</th><th>Email</th><th>Status</th><th>Catch-all</th><th>Provider</th></tr></thead>
+            <thead><tr><th>Company</th><th>Role</th><th>Pref</th><th>Posted</th><th>POC</th><th>Email</th><th>Status</th><th>Catch-all</th><th>Provider</th></tr></thead>
             <tbody id="hits-body"></tbody>
           </table>
         </div>
@@ -310,6 +310,7 @@ function renderHits() {
     const stColor = st === "valid" ? "var(--green)" : st === "catch-all" ? "var(--amber)" : st ? "var(--red)" : "var(--mute)";
     return "<tr><td><b>" + esc(h.company) + "</b></td><td>" +
       (h.url ? '<a href="' + esc(h.url) + '" target="_blank" rel="noreferrer">' + esc(h.title) + "</a>" : esc(h.title)) +
+      '</td><td class="mono" style="color:' + (h.preferred ? "var(--green)" : "var(--mute)") + ';font-weight:700;">' + (h.preferred ? "★" : "—") +
       '</td><td class="mono">' + esc(h.posted_at || "—") + "</td><td>" +
       esc(h.poc_name || "—") + (h.poc_title ? " · " + esc(h.poc_title) : "") +
       '</td><td class="mono">' + esc(h.poc_email || "—") +
@@ -320,7 +321,7 @@ function renderHits() {
 }
 
 $("export").onclick = () => {
-  const cols = ["company","city","state","vertical","ats_type","title","url","posted_at","poc_name","poc_title","poc_email","zb_status","zb_sub_status","zb_catch_all","zb_provider","zb_free_email"];
+  const cols = ["company","city","state","vertical","ats_type","title","url","preferred","posted_at","poc_name","poc_title","poc_email","zb_status","zb_sub_status","zb_catch_all","zb_provider","zb_free_email"];
   const q = (v) => '"' + String(v ?? "").replace(/"/g, '""') + '"';
   const csv = [cols.join(",")].concat(hits.map((h) => cols.map((c) => q(h[c])).join(","))).join("\n");
   const a = document.createElement("a");
