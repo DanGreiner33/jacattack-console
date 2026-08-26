@@ -321,7 +321,7 @@ function renderHits() {
 }
 
 $("export").onclick = () => {
-  const cols = ["company","city","state","vertical","ats_type","title","url","preferred","posted_at","poc_name","poc_title","poc_email","zb_status","zb_sub_status","zb_catch_all","zb_provider","zb_free_email"];
+  const cols = ["company","city","state","vertical","ats_type","title","url","preferred","posted_at","poc_name","poc_title","poc_email","poc_source","zb_status","zb_sub_status","zb_catch_all","zb_provider","zb_free_email"];
   const q = (v) => '"' + String(v ?? "").replace(/"/g, '""') + '"';
   const csv = [cols.join(",")].concat(hits.map((h) => cols.map((c) => q(h[c])).join(","))).join("\n");
   const a = document.createElement("a");
