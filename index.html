@@ -178,7 +178,7 @@ async function refreshStats() {
     $("chips").innerHTML = [
       ["companies", s.companies], ["with domain", s.with_domain], ["ATS found", s.ats_identified],
       ["live postings", s.active_postings], ["checked today", s.checked_today],
-      ["SB credits left", usage.sb_left], ["ZB credits left", usage.zb_left]
+      ["SB credits used", usage.sb_used], ["ZB emails verified", usage.zb_used]
     ].map(([l, v]) => '<div class="chip"><b>' + fmt(v) + '</b><span>' + l + '</span></div>').join("");
   } catch (e) { /* stats refresh is non-critical */ }
 }
