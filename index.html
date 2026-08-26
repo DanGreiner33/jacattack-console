@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JacAttack · Scan Console</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #16232E; --paper: #FFFFFF; --bg: #EDF0F3; --amber: #F5A300;
+    --green: #1D8A5B; --red: #C6432E; --mute: #5C6B78; --rule: #D8DEE4;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--ink); font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif; padding: 20px; }
+  .display { font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; }
+  .mono { font-family: 'IBM Plex Mono', 'Courier New', monospace; }
+  .panel { background: var(--paper); border: 2px solid var(--ink); padding: 20px; }
+  .label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--mute); display: block; margin-bottom: 4px; }
+  input, select { width: 100%; padding: 8px 12px; border: 1px solid var(--ink); font-size: 14px; font-family: inherit; outline: none; background: var(--paper); }
+  input:focus, select:focus, button:focus-visible { outline: 3px solid var(--amber); outline-offset: 1px; }
+  button { cursor: pointer; font-family: inherit; }
+  .btn-primary { width: 100%; padding: 12px; background: var(--amber); border: 2px solid var(--ink); color: var(--ink); font-size: 17px; font-weight: 700; }
+  .btn-stop { width: 100%; padding: 12px; background: var(--paper); border: 2px solid var(--red); color: var(--red); font-size: 17px; font-weight: 700; }
+  .preset { padding: 4px 12px; border: 1px solid var(--ink); background: var(--paper); font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
+  .preset.on { background: var(--ink); color: var(--paper); }
+  .chip { display: inline-flex; align-items: baseline; gap: 8px; padding: 4px 12px; border: 1px solid var(--ink); background: var(--paper); }
+  .chip b { font-family: 'IBM Plex Mono', monospace; font-size: 15px; }
+  .chip span { font-size: 11px; color: var(--mute); text-transform: uppercase; letter-spacing: .06em; }
+  .grid { display: grid; grid-template-columns: 1fr 2fr; gap: 16px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  .bar-track { width: 100%; height: 16px; border: 1px solid var(--ink); background: var(--bg); }
+  .bar-fill { height: 100%; width: 0%; background: var(--amber); transition: width .4s; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--mute); padding: 8px 12px 8px 0; border-bottom: 2px solid var(--ink); }
+  td { padding: 8px 12px 8px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  a { color: #0E5FA8; }
+  .err { color: var(--red); font-size: 13px; margin-top: 10px; }
+  .hint { font-size: 12px; color: var(--mute); margin-top: 10px; }
+  #gate { min-height: 90vh; display: flex; align-items: center; justify-content: center; }
+  .wordmark { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; }
+  .wordmark em { font-style: normal; color: var(--amber); }
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="panel" style="width:100%;max-width:380px;padding:32px;">
+    <div class="wordmark" style="font-size:40px;line-height:1;">JAC<em>ATTACK</em></div>
+    <div style="font-size:13px;color:var(--mute);margin:4px 0 24px;">Daily Leads · scan console</div>
+    <label class="label" for="pass">Passcode</label>
+    <input id="pass" type="password" placeholder="Enter passcode" class="mono">
+    <div id="gate-err" class="err" style="display:none;"></div>
+    <button id="login" class="btn-primary" style="margin-top:16px;">Open console</button>
+  </div>
+</div>
+
+<div id="app" style="display:none;">
+  <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:20px;">
+    <div class="wordmark" style="font-size:30px;line-height:1;">JAC<em>ATTACK</em></div>
+    <div id="chips" style="display:flex;flex-wrap:wrap;gap:8px;margin-left:auto;"></div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <div class="display" style="font-size:22px;font-weight:700;margin-bottom:12px;">CHECK LEADS</div>
+      <label class="label" for="count">Leads to find (unique companies with a posting)</label>
+      <input id="count" type="number" min="1" max="10000" value="250" class="display" style="font-size:34px;font-weight:700;">
+      <div style="display:flex;gap:8px;margin:8px 0 16px;">
+        <button class="preset" data-n="100">100</button>
+        <button class="preset on" data-n="250">250</button>
+        <button class="preset" data-n="500">500</button>
+        <button class="preset" data-n="1000">1000</button>
+      </div>
+      <label class="label" for="vertical">Vertical</label>
+      <select id="vertical" style="margin-bottom:12px;">
+        <option value="">All verticals</option>
+        <option value="legal">Legal</option>
+        <option value="accounting">Accounting</option>
+      </select>
+      <label class="label" for="state">State (optional, e.g. MO)</label>
+      <input id="state" maxlength="2" placeholder="Any state" class="mono" style="margin-bottom:20px;">
+      <button id="start" class="btn-primary">Start scan</button>
+      <div class="hint">Runs ~25 companies per chunk. Keep this tab open while a scan is running.</div>
+      <div id="scan-err" class="err" style="display:none;"></div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div class="panel">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+          <div id="batch-title" class="display" style="font-size:22px;font-weight:700;">READY</div>
+          <div id="batch-count" class="mono" style="font-size:13px;color:var(--mute);"></div>
+        </div>
+        <div class="bar-track"><div id="bar" class="bar-fill"></div></div>
+        <div id="batch-stats" class="mono" style="display:flex;flex-wrap:wrap;gap:16px;font-size:13px;margin-top:10px;"></div>
+        <div id="batch-hint" class="hint">Pick a lead count and start a scan. Companies with a known ATS check free; the rest are marked for the paid-tier pass.</div>
+      </div>
+
+      <div class="panel" style="flex:1;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div class="display" style="font-size:22px;font-weight:700;">HITS <span id="hit-n" style="color:var(--green);"></span></div>
+          <button id="export" style="display:none;padding:4px 12px;border:1px solid var(--ink);background:var(--ink);color:var(--paper);font-weight:600;font-size:13px;">Export CSV</button>
+        </div>
+        <div id="hits-empty" class="hint" style="margin:0;">Postings found in this batch land here — company, role, date, and the POC to contact.</div>
+        <div style="overflow-x:auto;">
+          <table id="hits-table" style="display:none;">
+            <thead><tr><th>Company</th><th>Role</th><th>Posted</th><th>POC</th><th>Email</th><th>Status</th><th>Catch-all</th><th>Provider</th></tr></thead>
+            <tbody id="hits-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const BASE = "https://ewyhiutafnoqlcsyrpvb.supabase.co";
+const KEY = "sb_publishable_-oc6APBVtmvNXx03t6bGhw_7xDx_EUw";
+const HDRS = { apikey: KEY, Authorization: "Bearer " + KEY, "Content-Type": "application/json" };
+
+let passcode = "", batchId = null, running = false, stopFlag = false, hits = [];
+const $ = (id) => document.getElementById(id);
+
+async function rpc(name, args) {
+  const r = await fetch(BASE + "/rest/v1/rpc/" + name, { method: "POST", headers: HDRS, body: JSON.stringify(args) });
+  if (!r.ok) {
+    const t = await r.text();
+    const authFail = t.includes("unauthorized");
+    throw new Error(authFail ? "unauthorized" : "Request failed (" + r.status + "): " + t.slice(0, 160));
+  }
+  return r.json();
+}
+
+async function runWorker() {
+  const r = await fetch(BASE + "/functions/v1/process-scan", {
+    method: "POST", headers: HDRS,
+    body: JSON.stringify({ passcode, batch_id: batchId, chunk_size: 10 })
+  });
+  if (!r.ok) throw new Error("Worker failed (" + r.status + "): " + (await r.text()).slice(0, 160));
+  return r.json();
+}
+
+function fmt(n) { return n == null ? "–" : Number(n).toLocaleString(); }
+
+async function refreshStats() {
+  try {
+    const s = await rpc("dashboard_stats", { p_passcode: passcode });
+    let usage = {};
+    try {
+      const ur = await fetch(BASE + "/functions/v1/usage-stats", { method: "POST", headers: HDRS, body: JSON.stringify({ passcode }) });
+      if (ur.ok) usage = await ur.json();
+    } catch (e) { /* usage chips are best-effort */ }
+    $("chips").innerHTML = [
+      ["companies", s.companies], ["with domain", s.with_domain], ["ATS found", s.ats_identified],
+      ["live postings", s.active_postings], ["checked today", s.checked_today],
+      ["SB credits left", usage.sb_left], ["ZB credits left", usage.zb_left]
+    ].map(([l, v]) => '<div class="chip"><b>' + fmt(v) + '</b><span>' + l + '</span></div>').join("");
+  } catch (e) { /* stats refresh is non-critical */ }
+}
+
+$("login").onclick = async () => {
+  passcode = $("pass").value.trim();
+  $("gate-err").style.display = "none";
+  try {
+    await rpc("dashboard_stats", { p_passcode: passcode });
+    $("gate").style.display = "none";
+    $("app").style.display = "block";
+    refreshStats();
+    setInterval(refreshStats, 60000);
+  } catch (e) {
+    $("gate-err").style.display = "block";
+    $("gate-err").textContent = e.message === "unauthorized"
+      ? "That passcode didn't match. Check it and try again."
+      : "Couldn't reach the backend: " + e.message;
+  }
+};
+$("pass").addEventListener("keydown", (e) => { if (e.key === "Enter") $("login").click(); });
+
+document.querySelectorAll(".preset").forEach((b) => {
+  b.onclick = () => {
+    if (running) return;
+    $("count").value = b.dataset.n;
+    document.querySelectorAll(".preset").forEach((x) => x.classList.toggle("on", x === b));
+  };
+});
+
+function setProgress(prog, target, found) {
+  const checked = prog.done + prog.errors;
+  $("batch-count").textContent = checked + " companies checked";
+  $("bar").style.width = Math.min(100, Math.round((found / Math.max(target, 1)) * 100)) + "%";
+  $("bar").style.background = running ? "var(--amber)" : "var(--green)";
+  $("batch-stats").innerHTML =
+    '<span style="color:var(--green);font-weight:600;">' + found + ' of ' + target + ' leads found</span>' +
+    '<span>' + fmt(prog.postings) + ' postings banked</span>' +
+    (prog.errors > 0 ? '<span style="color:var(--red);">' + prog.errors + ' errors</span>' : '');
+}
+
+function esc(s) { const d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; }
+
+function renderHits() {
+  $("hit-n").textContent = hits.length ? "· " + hits.length : "";
+  $("export").style.display = hits.length ? "inline-block" : "none";
+  $("hits-empty").style.display = hits.length ? "none" : "block";
+  $("hits-table").style.display = hits.length ? "table" : "none";
+  $("hits-body").innerHTML = hits.map((h) => {
+    const st = (h.zb_status || "").toLowerCase();
+    const stColor = st === "valid" ? "var(--green)" : st === "catch-all" ? "var(--amber)" : st ? "var(--red)" : "var(--mute)";
+    return "<tr><td><b>" + esc(h.company) + "</b></td><td>" +
+      (h.url ? '<a href="' + esc(h.url) + '" target="_blank" rel="noreferrer">' + esc(h.title) + "</a>" : esc(h.title)) +
+      '</td><td class="mono">' + esc(h.posted_at || "—") + "</td><td>" +
+      esc(h.poc_name || "—") + (h.poc_title ? " · " + esc(h.poc_title) : "") +
+      '</td><td class="mono">' + esc(h.poc_email || "—") +
+      '</td><td class="mono" style="color:' + stColor + ';font-weight:600;">' + esc(h.zb_status || "—") +
+      '</td><td class="mono" style="color:' + (h.zb_catch_all ? "var(--amber)" : "var(--mute)") + ';font-weight:600;">' + (h.zb_status ? (h.zb_catch_all ? "TRUE" : "FALSE") : "—") +
+      '</td><td class="mono">' + esc(h.zb_provider || "—") + "</td></tr>";
+  }).join("");
+}
+
+$("export").onclick = () => {
+  const cols = ["company","city","state","vertical","ats_type","title","url","location","posted_at","poc_name","poc_title","poc_email","zb_status","zb_sub_status","zb_catch_all","zb_provider","zb_free_email"];
+  const q = (v) => '"' + String(v ?? "").replace(/"/g, '""') + '"';
+  const csv = [cols.join(",")].concat(hits.map((h) => cols.map((c) => q(h[c])).join(","))).join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+  a.download = "jacattack-hits-batch-" + batchId + ".csv";
+  a.click();
+};
+
+$("start").onclick = async () => {
+  if (running) { stopFlag = true; $("start").textContent = "Stopping…"; return; }
+  const count = Math.max(1, Math.min(10000, Number($("count").value) || 0));
+  running = true; stopFlag = false; hits = []; renderHits();
+  $("scan-err").style.display = "none";
+  $("start").className = "btn-stop"; $("start").textContent = "Stop after this chunk";
+  try {
+    const req = await rpc("request_scan", {
+      p_passcode: passcode, p_count: count,
+      p_vertical: $("vertical").value || null,
+      p_state: $("state").value.trim() || null
+    });
+    batchId = req.batch_id;
+    $("batch-title").textContent = "SCANNING…";
+    $("batch-hint").style.display = "none";
+    if (!req.queued) {
+      throw new Error("No leads matched — every matching company is either recently checked or already queued. Widen the filters or wait for re-check windows to open.");
+    }
+    const target = req.target || count;
+    let remaining = req.queued, exhausted = false;
+    while (remaining > 0 && !stopFlag) {
+      const res = await runWorker();
+      if (res.error) throw new Error(res.error);
+      remaining = res.remaining;
+      exhausted = !!res.exhausted;
+      const [prog, h] = await Promise.all([
+        rpc("batch_progress", { p_passcode: passcode, p_batch_id: batchId }),
+        rpc("batch_hits", { p_passcode: passcode, p_batch_id: batchId })
+      ]);
+      hits = h || [];
+      $("batch-title").textContent = "SCANNING… " + (res.hits_total ?? hits.length) + " / " + target + " LEADS";
+      setProgress(prog, target, res.hits_total ?? hits.length);
+      renderHits();
+    }
+    $("batch-title").textContent = "BATCH #" + batchId +
+      (stopFlag && remaining > 0 ? " · STOPPED" : exhausted ? " · POOL EXHAUSTED" : " · DONE");
+    refreshStats();
+  } catch (e) {
+    $("scan-err").style.display = "block";
+    $("scan-err").textContent = e.message;
+    $("batch-title").textContent = batchId ? "BATCH #" + batchId : "READY";
+  }
+  running = false; stopFlag = false;
+  $("start").className = "btn-primary"; $("start").textContent = "Start scan";
+  $("bar").style.background = "var(--green)";
+};
+</script>
+</body>
+</html>
