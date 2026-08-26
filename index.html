@@ -61,6 +61,7 @@
   </div>
 
   <div class="grid">
+    <div style="display:flex;flex-direction:column;gap:16px;">
     <div class="panel">
       <div class="display" style="font-size:22px;font-weight:700;margin-bottom:12px;">CHECK LEADS</div>
       <label class="label" for="count">Leads to find (unique companies with a posting)</label>
@@ -84,6 +85,26 @@
       <div id="scan-err" class="err" style="display:none;"></div>
     </div>
 
+    <div class="panel">
+      <div class="display" style="font-size:22px;font-weight:700;margin-bottom:12px;">SCHEDULE A RUN</div>
+      <label class="label" for="sched-time">Run at</label>
+      <input id="sched-time" type="datetime-local" style="margin-bottom:12px;">
+      <label class="label" for="sched-count">Leads to find</label>
+      <input id="sched-count" type="number" min="1" max="1000" value="25" class="mono" style="margin-bottom:12px;">
+      <div style="display:flex;gap:8px;margin-bottom:16px;">
+        <select id="sched-vertical" style="flex:1;">
+          <option value="">All verticals</option>
+          <option value="legal">Legal</option>
+          <option value="accounting">Accounting</option>
+        </select>
+        <input id="sched-state" maxlength="2" placeholder="State" class="mono" style="width:80px;">
+      </div>
+      <button id="sched-btn" class="btn-primary" style="font-size:15px;padding:10px;">Schedule</button>
+      <div id="sched-err" class="err" style="display:none;"></div>
+      <div id="sched-list" style="margin-top:12px;"></div>
+    </div>
+    </div>
+
     <div style="display:flex;flex-direction:column;gap:16px;">
       <div class="panel">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
@@ -93,6 +114,11 @@
         <div class="bar-track"><div id="bar" class="bar-fill"></div></div>
         <div id="batch-stats" class="mono" style="display:flex;flex-wrap:wrap;gap:16px;font-size:13px;margin-top:10px;"></div>
         <div id="batch-hint" class="hint">Pick a lead count and start a scan. Companies with a known ATS check free; the rest are marked for the paid-tier pass.</div>
+      </div>
+
+      <div class="panel">
+        <div class="display" style="font-size:22px;font-weight:700;margin-bottom:8px;">RECENT BATCHES</div>
+        <div id="recent-list" class="mono" style="font-size:13px;"></div>
       </div>
 
       <div class="panel" style="flex:1;">
@@ -157,6 +183,79 @@ async function refreshStats() {
   } catch (e) { /* stats refresh is non-critical */ }
 }
 
+async function loadRecent() {
+  try {
+    const rows = await rpc("recent_batches", { p_passcode: passcode });
+    $("recent-list").innerHTML = (rows || []).map((b) =>
+      '<div style="display:flex;gap:12px;padding:5px 0;border-bottom:1px solid var(--rule);align-items:baseline;">' +
+      '<a href="#" data-view="' + b.id + '" style="font-weight:600;">#' + b.id + '</a>' +
+      '<span style="color:var(--mute);">' + new Date(b.created_at).toLocaleString([], {month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}) + '</span>' +
+      '<span style="color:var(--green);font-weight:600;">' + b.hits + '/' + (b.target_hits ?? "?") + ' leads</span>' +
+      '<span>' + b.checked + ' checked</span>' +
+      '<span style="color:var(--mute);">' + b.status + '</span></div>'
+    ).join("") || '<span class="hint">No batches yet.</span>';
+    document.querySelectorAll("[data-view]").forEach((a) => {
+      a.onclick = async (e) => { e.preventDefault(); await viewBatch(Number(a.dataset.view)); };
+    });
+  } catch (e) { /* non-critical */ }
+}
+
+async function viewBatch(id) {
+  batchId = id;
+  const [prog, h] = await Promise.all([
+    rpc("batch_progress", { p_passcode: passcode, p_batch_id: id }),
+    rpc("batch_hits", { p_passcode: passcode, p_batch_id: id })
+  ]);
+  hits = h || [];
+  $("batch-hint").style.display = "none";
+  $("batch-title").textContent = "BATCH #" + id;
+  const target = Math.max(prog.hits, 1);
+  setProgress(prog, target, prog.hits);
+  renderHits();
+}
+
+async function loadSchedules() {
+  try {
+    const rows = await rpc("list_schedules", { p_passcode: passcode });
+    $("sched-list").innerHTML = (rows || []).map((s) =>
+      '<div style="display:flex;gap:10px;padding:5px 0;border-bottom:1px solid var(--rule);align-items:baseline;font-size:13px;" class="mono">' +
+      '<span>' + new Date(s.run_at).toLocaleString([], {month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}) + '</span>' +
+      '<span style="font-weight:600;">' + s.target + ' leads</span>' +
+      '<span style="color:var(--mute);">' + (s.vertical || "all") + (s.state ? " · " + s.state : "") + '</span>' +
+      '<span style="color:var(--mute);">' + s.status + (s.batch_id ? " · #" + s.batch_id : "") + '</span>' +
+      (s.status === "pending" ? '<a href="#" data-cancel="' + s.id + '" style="color:var(--red);">cancel</a>' : "") +
+      '</div>'
+    ).join("") || '<span class="hint">Nothing scheduled.</span>';
+    document.querySelectorAll("[data-cancel]").forEach((a) => {
+      a.onclick = async (e) => {
+        e.preventDefault();
+        await rpc("cancel_schedule", { p_passcode: passcode, p_id: Number(a.dataset.cancel) });
+        loadSchedules();
+      };
+    });
+  } catch (e) { /* non-critical */ }
+}
+
+$("sched-btn").onclick = async () => {
+  $("sched-err").style.display = "none";
+  try {
+    const t = $("sched-time").value;
+    if (!t) throw new Error("Pick a date and time first.");
+    await rpc("create_schedule", {
+      p_passcode: passcode,
+      p_run_at: new Date(t).toISOString(),
+      p_count: Math.max(1, Math.min(1000, Number($("sched-count").value) || 25)),
+      p_vertical: $("sched-vertical").value || null,
+      p_state: $("sched-state").value.trim() || null
+    });
+    $("sched-time").value = "";
+    loadSchedules();
+  } catch (e) {
+    $("sched-err").style.display = "block";
+    $("sched-err").textContent = e.message;
+  }
+};
+
 $("login").onclick = async () => {
   passcode = $("pass").value.trim();
   $("gate-err").style.display = "none";
@@ -165,7 +264,11 @@ $("login").onclick = async () => {
     $("gate").style.display = "none";
     $("app").style.display = "block";
     refreshStats();
+    loadRecent();
+    loadSchedules();
     setInterval(refreshStats, 60000);
+    setInterval(loadRecent, 60000);
+    setInterval(loadSchedules, 60000);
   } catch (e) {
     $("gate-err").style.display = "block";
     $("gate-err").textContent = e.message === "unauthorized"
