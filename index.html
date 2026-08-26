@@ -188,19 +188,19 @@ async function loadRecent() {
     const rows = await rpc("recent_batches", { p_passcode: passcode });
     $("recent-list").innerHTML = (rows || []).map((b) =>
       '<div style="display:flex;gap:12px;padding:5px 0;border-bottom:1px solid var(--rule);align-items:baseline;">' +
-      '<a href="#" data-view="' + b.id + '" style="font-weight:600;">#' + b.id + '</a>' +
+      '<a href="#" data-view="' + b.id + '" data-target="' + (b.target_hits ?? 0) + '" style="font-weight:600;">#' + b.id + '</a>' +
       '<span style="color:var(--mute);">' + new Date(b.created_at).toLocaleString([], {month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}) + '</span>' +
       '<span style="color:var(--green);font-weight:600;">' + b.hits + '/' + (b.target_hits ?? "?") + ' leads</span>' +
       '<span>' + b.checked + ' checked</span>' +
       '<span style="color:var(--mute);">' + b.status + '</span></div>'
     ).join("") || '<span class="hint">No batches yet.</span>';
     document.querySelectorAll("[data-view]").forEach((a) => {
-      a.onclick = async (e) => { e.preventDefault(); await viewBatch(Number(a.dataset.view)); };
+      a.onclick = async (e) => { e.preventDefault(); await viewBatch(Number(a.dataset.view), Number(a.dataset.target) || 0); };
     });
   } catch (e) { /* non-critical */ }
 }
 
-async function viewBatch(id) {
+async function viewBatch(id, knownTarget) {
   batchId = id;
   const [prog, h] = await Promise.all([
     rpc("batch_progress", { p_passcode: passcode, p_batch_id: id }),
@@ -208,8 +208,9 @@ async function viewBatch(id) {
   ]);
   hits = h || [];
   $("batch-hint").style.display = "none";
-  $("batch-title").textContent = "BATCH #" + id;
-  const target = Math.max(prog.hits, 1);
+  const target = Math.max(knownTarget || prog.hits, 1);
+  const live = prog.queued > 0 || prog.hits < target;
+  $("batch-title").textContent = "BATCH #" + id + (live && knownTarget ? " \u00b7 " + prog.hits + " / " + target + " LEADS" : "");
   setProgress(prog, target, prog.hits);
   renderHits();
 }
