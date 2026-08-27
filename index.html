@@ -74,9 +74,12 @@
       </div>
       <label class="label" for="vertical">Vertical</label>
       <select id="vertical" style="margin-bottom:12px;">
+        <option value="core">Core (legal + accounting)</option>
         <option value="">All verticals</option>
-        <option value="legal">Legal</option>
-        <option value="accounting">Accounting</option>
+        <option value="legal">Legal only</option>
+        <option value="accounting">Accounting only</option>
+        <option value="temp">Temp staffing (temp/temp-to-hire/project postings)</option>
+        <option value="nonlegal">Non-legal/accounting (manager & admin leads)</option>
       </select>
       <label class="label" for="state">State (optional, e.g. MO)</label>
       <input id="state" maxlength="2" placeholder="Any state" class="mono" style="margin-bottom:20px;">
