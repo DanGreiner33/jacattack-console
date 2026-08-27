@@ -96,9 +96,12 @@
       <input id="sched-count" type="number" min="1" max="1000" value="25" class="mono" style="margin-bottom:12px;">
       <div style="display:flex;gap:8px;margin-bottom:16px;">
         <select id="sched-vertical" style="flex:1;">
+          <option value="core">Core (legal + accounting)</option>
           <option value="">All verticals</option>
-          <option value="legal">Legal</option>
-          <option value="accounting">Accounting</option>
+          <option value="legal">Legal only</option>
+          <option value="accounting">Accounting only</option>
+          <option value="temp">Temp staffing</option>
+          <option value="nonlegal">Non-legal/accounting (mgr &amp; admin)</option>
         </select>
         <input id="sched-state" maxlength="2" placeholder="State" class="mono" style="width:80px;">
       </div>
