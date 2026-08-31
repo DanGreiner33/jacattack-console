@@ -145,8 +145,11 @@
       </div>
 
       <div class="panel">
-        <div class="display" style="font-size:22px;font-weight:700;margin-bottom:8px;">RECENT BATCHES</div>
-        <div id="recent-list" class="mono" style="font-size:13px;"></div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+          <div class="display" style="font-size:22px;font-weight:700;">RECENT BATCHES</div>
+          <a href="#" id="recent-toggle" class="mono" style="font-size:12px;">show all</a>
+        </div>
+        <div id="recent-list" class="mono" style="font-size:13px;max-height:220px;overflow-y:auto;"></div>
       </div>
 
       <div class="panel">
@@ -257,9 +260,10 @@ async function loadClients() {
   } catch (e) { /* non-critical */ }
 }
 
+let recentShowAll = false;
 async function loadRecent() {
   try {
-    const rows = await rpc("recent_batches", { p_passcode: passcode });
+    const rows = await rpc("recent_batches", { p_passcode: passcode, p_limit: recentShowAll ? 500 : 8 });
     $("recent-list").innerHTML = (rows || []).map((b) =>
       '<div style="display:flex;gap:12px;padding:5px 0;border-bottom:1px solid var(--rule);align-items:baseline;">' +
       '<a href="#" data-view="' + b.id + '" data-target="' + (b.target_hits ?? 0) + '" style="font-weight:600;">#' + b.id + '</a>' +
@@ -477,6 +481,13 @@ async function startClientScan() {
 }
 document.addEventListener("click", async (e) => {
   if (e.target && e.target.id === "client-start") { e.preventDefault(); startClientScan(); }
+  if (e.target && e.target.id === "recent-toggle") {
+    e.preventDefault();
+    recentShowAll = !recentShowAll;
+    e.target.textContent = recentShowAll ? "show less" : "show all";
+    $("recent-list").style.maxHeight = recentShowAll ? "420px" : "220px";
+    loadRecent();
+  }
   if (e.target && e.target.classList && e.target.classList.contains("client-preset")) {
     e.preventDefault(); $("client-count").value = e.target.dataset.n;
   }
