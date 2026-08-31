@@ -109,6 +109,28 @@
       <div id="sched-err" class="err" style="display:none;"></div>
       <div id="sched-list" style="margin-top:12px;"></div>
     </div>
+
+    <div class="panel">
+      <div class="display" style="font-size:22px;font-weight:700;margin-bottom:12px;">CHECK CLIENTS</div>
+      <div style="font-size:11px;font-weight:700;letter-spacing:.04em;margin-bottom:4px;">CLIENTS TO CHECK</div>
+      <input id="client-count" class="mono" type="number" value="25" min="1" max="2800" style="width:100%;padding:8px;font-size:18px;font-weight:700;box-sizing:border-box;" />
+      <div style="display:flex;gap:6px;margin:6px 0 10px;">
+        <button class="preset client-preset" data-n="10">10</button>
+        <button class="preset client-preset" data-n="25">25</button>
+        <button class="preset client-preset" data-n="50">50</button>
+      </div>
+      <div style="font-size:11px;font-weight:700;letter-spacing:.04em;margin-bottom:4px;">NICHE</div>
+      <select id="client-niche" class="mono" style="width:100%;padding:8px;font-size:13px;margin-bottom:10px;box-sizing:border-box;">
+        <option value="All">All niches</option>
+        <option value="Legal">Legal</option>
+        <option value="Tax/CPA">Tax/CPA</option>
+        <option value="Accounting">Accounting</option>
+        <option value="Corporate Function">Corporate function (HR, marketing)</option>
+      </select>
+      <button id="client-start" class="btn-primary" style="width:100%;font-size:15px;padding:10px;">Check clients</button>
+      <div id="client-status" class="mono" style="font-size:12px;color:var(--mute);margin-top:8px;"></div>
+      <div class="hint">Openings land in HITS on the right, like a normal batch. Each client rechecks after 30 days — never twice in a week.</div>
+    </div>
     </div>
 
     <div style="display:flex;flex-direction:column;gap:16px;">
@@ -136,37 +158,6 @@
         <div class="hint">Snapshots on the 1st of each month; SB / ZB / LLM $ then reset for the new month.</div>
       </div>
 
-      <div class="panel">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
-          <div class="display" style="font-size:22px;font-weight:700;">CLIENT OPENINGS</div>
-          <a href="#" id="client-refresh" class="mono" style="font-size:12px;">refresh</a>
-        </div>
-        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:10px;">
-          <div>
-            <div style="font-size:11px;font-weight:700;letter-spacing:.04em;margin-bottom:4px;">CLIENTS TO CHECK</div>
-            <input id="client-count" class="mono" type="number" value="25" min="1" max="2800" style="width:90px;padding:8px;font-size:16px;font-weight:700;" />
-          </div>
-          <div style="display:flex;gap:6px;">
-            <button class="preset client-preset" data-n="10">10</button>
-            <button class="preset client-preset" data-n="25">25</button>
-            <button class="preset client-preset" data-n="50">50</button>
-          </div>
-          <div>
-            <div style="font-size:11px;font-weight:700;letter-spacing:.04em;margin-bottom:4px;">NICHE</div>
-            <select id="client-niche" class="mono" style="padding:8px;font-size:13px;">
-              <option value="All">All niches</option>
-              <option value="Legal">Legal</option>
-              <option value="Tax/CPA">Tax/CPA</option>
-              <option value="Accounting">Accounting</option>
-              <option value="Corporate Function">Corporate function (HR, marketing)</option>
-            </select>
-          </div>
-          <button id="client-start" style="background:var(--orange,#f5a623);border:none;padding:10px 22px;font-weight:700;cursor:pointer;">Check clients</button>
-          <span id="client-status" class="mono" style="font-size:12px;color:var(--mute);"></span>
-        </div>
-        <div id="client-list" class="mono" style="font-size:12px;"></div>
-        <div class="hint">Current clients with live professional openings, grouped by niche — warm expansion, not cold outreach. "Scan clients" refreshes their careers pages (~2,770 companies, runs like a normal batch).</div>
-      </div>
 
       <div class="panel" style="flex:1;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
@@ -348,7 +339,7 @@ $("login").onclick = async () => {
     $("gate").style.display = "none";
     $("app").style.display = "block";
     refreshStats();
-    loadRecent(); loadMonthly(); loadClients();
+    loadRecent(); loadMonthly();
     loadSchedules();
     setInterval(refreshStats, 60000);
     setInterval(loadRecent, 60000);
@@ -474,18 +465,17 @@ async function startClientScan() {
       try {
         const p = await rpc("batch_progress", { p_passcode: passcode, p_batch_id: r.batch_id });
         $("client-status").textContent = "batch #" + r.batch_id + " — " + p.done + "/" + r.seeded + " checked, " + p.hits + " with openings";
-        loadClients();
+        viewBatch(r.batch_id, 0);
         if (p.status === "done" || p.done >= r.seeded) {
           clearInterval(clientPoll); clientPoll = null;
           $("client-status").textContent = "done — " + p.done + " checked, " + p.hits + " clients with openings";
-          loadClients();
+          viewBatch(r.batch_id, 0); loadRecent();
         }
       } catch (e) { /* keep polling */ }
     }, 6000);
   } catch (err) { $("client-status").textContent = "failed: " + err.message; }
 }
 document.addEventListener("click", async (e) => {
-  if (e.target && e.target.id === "client-refresh") { e.preventDefault(); loadClients(); }
   if (e.target && e.target.id === "client-start") { e.preventDefault(); startClientScan(); }
   if (e.target && e.target.classList && e.target.classList.contains("client-preset")) {
     e.preventDefault(); $("client-count").value = e.target.dataset.n;
