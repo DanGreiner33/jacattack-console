@@ -136,6 +136,18 @@
         <div class="hint">Snapshots on the 1st of each month; SB / ZB / LLM $ then reset for the new month.</div>
       </div>
 
+      <div class="panel">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+          <div class="display" style="font-size:22px;font-weight:700;">CLIENT OPENINGS</div>
+          <div>
+            <a href="#" id="client-scan" class="mono" style="font-size:12px;margin-right:14px;">scan clients</a>
+            <a href="#" id="client-refresh" class="mono" style="font-size:12px;">refresh</a>
+          </div>
+        </div>
+        <div id="client-list" class="mono" style="font-size:12px;"></div>
+        <div class="hint">Current clients with live professional openings, grouped by niche — warm expansion, not cold outreach. "Scan clients" refreshes their careers pages (~2,770 companies, runs like a normal batch).</div>
+      </div>
+
       <div class="panel" style="flex:1;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
           <div class="display" style="font-size:22px;font-weight:700;">HITS <span id="hit-n" style="color:var(--green);"></span></div>
@@ -215,6 +227,22 @@ async function loadMonthly() {
         fmt(m.checked_period) + ' checked · SB ' + fmt(m.sb_credits) + ' · ZB ' + fmt(m.zb_verified) +
         ' · LLM $' + Number(m.llm_total_usd || 0).toFixed(2) + (llm ? ' (' + llm + ')' : '') + '</div>';
     }).join("") : '<div style="color:var(--mute);">No snapshots yet — first one lands on the 1st.</div>';
+  } catch (e) { /* non-critical */ }
+}
+
+async function loadClients() {
+  try {
+    const rows = await rpc("client_openings", { p_passcode: passcode });
+    if (!rows || !rows.length) { $("client-list").innerHTML = '<div style="color:var(--mute);">No client openings on file — run "scan clients" to sweep their careers pages.</div>'; return; }
+    const byNiche = {};
+    rows.forEach((r) => { (byNiche[r.niche || "Corporate Function"] = byNiche[r.niche || "Corporate Function"] || []).push(r); });
+    $("client-list").innerHTML = ["Legal", "Tax/CPA", "Accounting", "Corporate Function"].filter((n) => byNiche[n]).map((n) => {
+      const items = byNiche[n].map((r) =>
+        '<div style="padding:3px 0 3px 14px;">' +
+        (r.url ? '<a href="' + r.url + '" target="_blank">' + r.title + '</a>' : r.title) +
+        ' <span style="color:var(--mute);">— ' + r.company + ' · seen ' + r.last_seen + '</span></div>').join("");
+      return '<div style="padding:6px 0;border-bottom:1px solid var(--rule);"><b>' + n + ' (' + byNiche[n].length + ')</b>' + items + '</div>';
+    }).join("");
   } catch (e) { /* non-critical */ }
 }
 
@@ -300,7 +328,7 @@ $("login").onclick = async () => {
     $("gate").style.display = "none";
     $("app").style.display = "block";
     refreshStats();
-    loadRecent(); loadMonthly();
+    loadRecent(); loadMonthly(); loadClients();
     loadSchedules();
     setInterval(refreshStats, 60000);
     setInterval(loadRecent, 60000);
@@ -412,6 +440,17 @@ $("start").onclick = async () => {
   $("bar").style.background = "var(--green)";
 };
 document.addEventListener("click", (e) => { if (e.target && e.target.id === "monthly-refresh") { e.preventDefault(); loadMonthly(); } });
+document.addEventListener("click", async (e) => {
+  if (e.target && e.target.id === "client-refresh") { e.preventDefault(); loadClients(); }
+  if (e.target && e.target.id === "client-scan") {
+    e.preventDefault();
+    if (!confirm("Sweep all client careers pages? Runs as a normal batch (~2,770 companies) and may take a while.")) return;
+    try {
+      const r = await rpc("request_scan", { p_passcode: passcode, p_count: 400, p_vertical: "clients" });
+      alert("Client sweep started as batch #" + r.batch_id + " — openings will populate as it runs.");
+    } catch (err) { alert("Could not start client sweep: " + err.message); }
+  }
+});
 </script>
 </body>
 </html>
