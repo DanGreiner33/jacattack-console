@@ -127,6 +127,15 @@
         <div id="recent-list" class="mono" style="font-size:13px;"></div>
       </div>
 
+      <div class="panel">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+          <div class="display" style="font-size:22px;font-weight:700;">MONTHLY LOG</div>
+          <a href="#" id="monthly-refresh" class="mono" style="font-size:12px;">refresh</a>
+        </div>
+        <div id="monthly-list" class="mono" style="font-size:12px;"></div>
+        <div class="hint">Snapshots on the 1st of each month; SB / ZB / LLM $ then reset for the new month.</div>
+      </div>
+
       <div class="panel" style="flex:1;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
           <div class="display" style="font-size:22px;font-weight:700;">HITS <span id="hit-n" style="color:var(--green);"></span></div>
@@ -186,7 +195,27 @@ async function refreshStats() {
       ["live postings", s.active_postings], ["checked today", s.checked_today],
       ["SB credits used", usage.sb_used], ["ZB emails verified", usage.zb_used]
     ].map(([l, v]) => '<div class="chip"><b>' + fmt(v) + '</b><span>' + l + '</span></div>').join("");
+    try {
+      const lu = await rpc("llm_usage_summary", { p_passcode: passcode });
+      if (Array.isArray(lu) && lu.length) {
+        $("chips").innerHTML += lu.map((m) =>
+          '<div class="chip"><b>$' + Number(m.usd).toFixed(2) + '</b><span>' + m.model + ' (month)</span></div>').join("");
+      }
+    } catch (e) { /* llm chips best-effort */ }
   } catch (e) { /* stats refresh is non-critical */ }
+}
+
+async function loadMonthly() {
+  try {
+    const rows = await rpc("monthly_log", { p_passcode: passcode });
+    $("monthly-list").innerHTML = (rows && rows.length) ? rows.map((m) => {
+      const llm = (m.llm_usage_json || []).map((u) => u.model + " $" + Number(u.usd).toFixed(2)).join(" · ");
+      return '<div style="padding:5px 0;border-bottom:1px solid var(--rule);">' +
+        '<b>' + m.month_label + '</b> — ' + fmt(m.companies) + ' cos · ' + fmt(m.live_postings) + ' postings · ' +
+        fmt(m.checked_period) + ' checked · SB ' + fmt(m.sb_credits) + ' · ZB ' + fmt(m.zb_verified) +
+        ' · LLM $' + Number(m.llm_total_usd || 0).toFixed(2) + (llm ? ' (' + llm + ')' : '') + '</div>';
+    }).join("") : '<div style="color:var(--mute);">No snapshots yet — first one lands on the 1st.</div>';
+  } catch (e) { /* non-critical */ }
 }
 
 async function loadRecent() {
@@ -271,7 +300,7 @@ $("login").onclick = async () => {
     $("gate").style.display = "none";
     $("app").style.display = "block";
     refreshStats();
-    loadRecent();
+    loadRecent(); loadMonthly();
     loadSchedules();
     setInterval(refreshStats, 60000);
     setInterval(loadRecent, 60000);
@@ -382,6 +411,7 @@ $("start").onclick = async () => {
   $("start").className = "btn-primary"; $("start").textContent = "Start scan";
   $("bar").style.background = "var(--green)";
 };
+document.addEventListener("click", (e) => { if (e.target && e.target.id === "monthly-refresh") { e.preventDefault(); loadMonthly(); } });
 </script>
 </body>
 </html>
