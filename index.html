@@ -139,10 +139,30 @@
       <div class="panel">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
           <div class="display" style="font-size:22px;font-weight:700;">CLIENT OPENINGS</div>
+          <a href="#" id="client-refresh" class="mono" style="font-size:12px;">refresh</a>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:10px;">
           <div>
-            <a href="#" id="client-scan" class="mono" style="font-size:12px;margin-right:14px;">scan clients</a>
-            <a href="#" id="client-refresh" class="mono" style="font-size:12px;">refresh</a>
+            <div style="font-size:11px;font-weight:700;letter-spacing:.04em;margin-bottom:4px;">CLIENTS TO CHECK</div>
+            <input id="client-count" class="mono" type="number" value="25" min="1" max="2800" style="width:90px;padding:8px;font-size:16px;font-weight:700;" />
           </div>
+          <div style="display:flex;gap:6px;">
+            <button class="preset client-preset" data-n="10">10</button>
+            <button class="preset client-preset" data-n="25">25</button>
+            <button class="preset client-preset" data-n="50">50</button>
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:700;letter-spacing:.04em;margin-bottom:4px;">NICHE</div>
+            <select id="client-niche" class="mono" style="padding:8px;font-size:13px;">
+              <option value="All">All niches</option>
+              <option value="Legal">Legal</option>
+              <option value="Tax/CPA">Tax/CPA</option>
+              <option value="Accounting">Accounting</option>
+              <option value="Corporate Function">Corporate function (HR, marketing)</option>
+            </select>
+          </div>
+          <button id="client-start" style="background:var(--orange,#f5a623);border:none;padding:10px 22px;font-weight:700;cursor:pointer;">Check clients</button>
+          <span id="client-status" class="mono" style="font-size:12px;color:var(--mute);"></span>
         </div>
         <div id="client-list" class="mono" style="font-size:12px;"></div>
         <div class="hint">Current clients with live professional openings, grouped by niche — warm expansion, not cold outreach. "Scan clients" refreshes their careers pages (~2,770 companies, runs like a normal batch).</div>
@@ -440,15 +460,35 @@ $("start").onclick = async () => {
   $("bar").style.background = "var(--green)";
 };
 document.addEventListener("click", (e) => { if (e.target && e.target.id === "monthly-refresh") { e.preventDefault(); loadMonthly(); } });
+let clientPoll = null;
+async function startClientScan() {
+  const n = Math.max(1, Math.min(2800, parseInt($("client-count").value || "25", 10)));
+  const niche = $("client-niche").value;
+  $("client-status").textContent = "starting…";
+  try {
+    const r = await rpc("request_client_scan", { p_passcode: passcode, p_count: n, p_niche: niche });
+    if (!r.seeded) { $("client-status").textContent = "no clients available to check (all on 30-day cooldown for this niche)"; return; }
+    $("client-status").textContent = "batch #" + r.batch_id + " — checking " + r.seeded + " clients…";
+    if (clientPoll) clearInterval(clientPoll);
+    clientPoll = setInterval(async () => {
+      try {
+        const p = await rpc("batch_progress", { p_passcode: passcode, p_batch_id: r.batch_id });
+        $("client-status").textContent = "batch #" + r.batch_id + " — " + p.done + "/" + r.seeded + " checked, " + p.hits + " with openings";
+        loadClients();
+        if (p.status === "done" || p.done >= r.seeded) {
+          clearInterval(clientPoll); clientPoll = null;
+          $("client-status").textContent = "done — " + p.done + " checked, " + p.hits + " clients with openings";
+          loadClients();
+        }
+      } catch (e) { /* keep polling */ }
+    }, 6000);
+  } catch (err) { $("client-status").textContent = "failed: " + err.message; }
+}
 document.addEventListener("click", async (e) => {
   if (e.target && e.target.id === "client-refresh") { e.preventDefault(); loadClients(); }
-  if (e.target && e.target.id === "client-scan") {
-    e.preventDefault();
-    if (!confirm("Sweep all client careers pages? Runs as a normal batch (~2,770 companies) and may take a while.")) return;
-    try {
-      const r = await rpc("request_scan", { p_passcode: passcode, p_count: 400, p_vertical: "clients" });
-      alert("Client sweep started as batch #" + r.batch_id + " — openings will populate as it runs.");
-    } catch (err) { alert("Could not start client sweep: " + err.message); }
+  if (e.target && e.target.id === "client-start") { e.preventDefault(); startClientScan(); }
+  if (e.target && e.target.classList && e.target.classList.contains("client-preset")) {
+    e.preventDefault(); $("client-count").value = e.target.dataset.n;
   }
 });
 </script>
