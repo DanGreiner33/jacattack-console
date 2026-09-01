@@ -83,7 +83,12 @@
         <option value="nonlegal">Non-legal/tax (mgr, admin &amp; accounting)</option>
       </select>
       <label class="label" for="state">State (optional, e.g. MO)</label>
-      <input id="state" maxlength="2" placeholder="Any state" class="mono" style="margin-bottom:20px;">
+      <input id="state" maxlength="2" placeholder="Any state" class="mono" style="margin-bottom:12px;">
+      <label class="label" for="delivery">Delivery</label>
+      <select id="delivery" style="margin-bottom:20px;">
+        <option value="list">Run list only (HITS panel)</option>
+        <option value="send">Auto-send from pilot mailboxes (16/inbox/day)</option>
+      </select>
       <button id="start" class="btn-primary">Start scan</button>
       <div class="hint">Runs ~25 companies per chunk. Keep this tab open while a scan is running.</div>
       <div id="scan-err" class="err" style="display:none;"></div>
@@ -498,7 +503,8 @@ $("start").onclick = async () => {
     const req = await rpc("request_scan", {
       p_passcode: passcode, p_count: count,
       p_vertical: $("vertical").value || null,
-      p_state: $("state").value.trim() || null
+      p_state: $("state").value.trim() || null,
+      p_send: $("delivery").value === "send"
     });
     batchId = req.batch_id;
     $("batch-title").textContent = "SCANNING…";
