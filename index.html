@@ -260,8 +260,9 @@ async function loadSpend() {
       if (r.model === PRIMARY) byDay[r.day].flash += u; else byDay[r.day].other += u;
       if (r.day.startsWith(mPrefix)) {
         allMtd += u; if (r.model === PRIMARY) flashMtd += u;
-        byModel[r.model] = byModel[r.model] || { calls: 0, usd: 0, today: 0 };
+        byModel[r.model] = byModel[r.model] || { calls: 0, usd: 0, today: 0, tin: 0, tout: 0 };
         byModel[r.model].calls += Number(r.calls); byModel[r.model].usd += u;
+        byModel[r.model].tin += Number(r.in_tokens || 0); byModel[r.model].tout += Number(r.out_tokens || 0);
         if (r.day === tKey) byModel[r.model].today += u;
       }
       if (r.day === tKey) { allToday += u; callsToday += Number(r.calls); if (r.model === PRIMARY) { flashToday += u; flashCallsToday += Number(r.calls); } }
@@ -288,7 +289,7 @@ async function loadSpend() {
     $("spend-days").innerHTML = '<span>' + days[0].slice(5) + '</span><span>' + days[13].slice(5) + '</span>';
     $("spend-models").innerHTML = Object.keys(byModel).sort((a, b) => byModel[b].usd - byModel[a].usd).map((m) =>
       '<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--rule);' + (m === PRIMARY ? 'color:var(--green);font-weight:600;' : '') + '">' +
-      '<span>' + m + '</span><span>' + fmt(byModel[m].calls) + ' calls · today $' + byModel[m].today.toFixed(2) + ' · MTD $' + byModel[m].usd.toFixed(2) + '</span></div>').join("") || '<div style="color:var(--mute);">No LLM calls yet this month.</div>';
+      '<span>' + m + '</span><span>' + fmt(byModel[m].calls) + ' calls · ' + (byModel[m].tin / 1e6).toFixed(2) + 'M in / ' + (byModel[m].tout / 1e6).toFixed(2) + 'M out · today $' + byModel[m].today.toFixed(2) + ' · MTD $' + byModel[m].usd.toFixed(2) + '</span></div>').join("") || '<div style="color:var(--mute);">No LLM calls yet this month.</div>';
   } catch (e) { /* non-critical */ }
   try {
     const br = await fetch(BASE + "/functions/v1/balances", { method: "POST", headers: HDRS, body: JSON.stringify({ passcode }) });
