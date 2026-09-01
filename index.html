@@ -164,7 +164,7 @@
 
       <div class="panel">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
-          <div class="display" style="font-size:22px;font-weight:700;">LLM SPEND <span class="mono" style="font-size:12px;color:var(--mute);font-weight:400;">glm-5.3-flash</span></div>
+          <div class="display" style="font-size:22px;font-weight:700;">LLM SPEND <span id="spend-models-label" class="mono" style="font-size:12px;color:var(--mute);font-weight:400;"></span></div>
           <a href="#" id="spend-refresh" class="mono" style="font-size:12px;">refresh</a>
         </div>
         <div id="spend-big" style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:10px;"></div>
@@ -172,7 +172,7 @@
         <div id="spend-days" class="mono" style="display:flex;justify-content:space-between;font-size:10px;color:var(--mute);margin-bottom:10px;"></div>
         <div id="spend-models" class="mono" style="font-size:12px;margin-bottom:10px;"></div>
         <div id="spend-fuel" class="mono" style="display:flex;flex-wrap:wrap;gap:8px;font-size:12px;"></div>
-        <div class="hint">Bars = LLM $ per day (Chicago), Flash in green, fallback models in grey. Fuel = what each service has left; a red Kimi means the safety net is off.</div>
+        <div class="hint">Bars = LLM $ per day (Chicago), Flash in green, fallback models in grey. Fuel = what each service has left; a red fallback chip means the Anthropic key isn't answering and the safety net is off.</div>
       </div>
 
       <div class="panel" style="flex:1;">
@@ -224,6 +224,7 @@ function fmt(n) { return n == null ? "–" : Number(n).toLocaleString(); }
 async function refreshStats() {
   try {
     const s = await rpc("dashboard_stats", { p_passcode: passcode });
+    window.LLM_PRIMARY = s.llm_model || "glm-5.3-flash"; window.LLM_FALLBACK = s.llm_fallback_model || "";
     let usage = {};
     try {
       const ur = await fetch(BASE + "/functions/v1/usage-stats", { method: "POST", headers: HDRS, body: JSON.stringify({ passcode }) });
@@ -247,7 +248,7 @@ async function refreshStats() {
 async function loadSpend() {
   try {
     const rows = await rpc("llm_spend_daily", { p_passcode: passcode, p_days: 30 });
-    const PRIMARY = "glm-5.3-flash";
+    const PRIMARY = window.LLM_PRIMARY || "glm-5.3-flash";
     const today = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Chicago" }));
     const key = (d) => d.toISOString().slice(0, 10);
     const tKey = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
@@ -271,9 +272,10 @@ async function loadSpend() {
     const proj = allMtd / today.getDate() * dim;
     const netPct = callsToday ? Math.round(100 * (1 - flashCallsToday / callsToday)) : 0;
     const big = (v, l, c) => '<div><div class="display" style="font-size:26px;font-weight:700;color:' + (c || 'var(--ink)') + ';">' + v + '</div><div class="mono" style="font-size:11px;color:var(--mute);">' + l + '</div></div>';
+    $("spend-models-label").textContent = PRIMARY + (window.LLM_FALLBACK ? "  \u2192 fallback " + window.LLM_FALLBACK : "");
     $("spend-big").innerHTML =
-      big("$" + flashToday.toFixed(2), "Flash today", "var(--green)") +
-      big("$" + flashMtd.toFixed(2), "Flash month-to-date", "var(--green)") +
+      big("$" + flashToday.toFixed(2), PRIMARY + " today", "var(--green)") +
+      big("$" + flashMtd.toFixed(2), PRIMARY + " month-to-date", "var(--green)") +
       big("$" + allToday.toFixed(2), "all models today") +
       big("$" + proj.toFixed(0), "projected month (all)") +
       big(netPct + "%", "of today's calls on fallback", netPct > 20 ? "#c0392b" : "var(--mute)");
@@ -301,7 +303,7 @@ async function loadSpend() {
     $("spend-fuel").innerHTML =
       tag("SB credits left", sbLeft == null ? "?" : fmt(sbLeft), sbLeft != null && sbLeft < 30000) +
       tag("ZB credits", isFinite(b.zerobounce) ? fmt(b.zerobounce) : "?", b.zerobounce < 2000) +
-      tag("Kimi net " + (kimi <= 0 ? "OFF" : "$"), isFinite(kimi) ? "$" + kimi.toFixed(2) : "?", !(kimi > 5)) +
+      tag("fallback " + (b.fallback || "none"), (b.anthropic && b.anthropic.key_ok) ? "armed" : "KEY DOWN", !(b.anthropic && b.anthropic.key_ok)) +
       tag("SerpApi left", b.serpapi && b.serpapi.left != null ? b.serpapi.left : "?", b.serpapi && b.serpapi.left < 30) +
       '<div class="chip"><b><a href="https://aihubmix.com/" target="_blank" style="color:inherit;">check</a></b><span>AIHubMix balance (Flash)</span></div>';
   } catch (e) { /* balances best-effort */ }
