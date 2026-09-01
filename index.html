@@ -162,6 +162,19 @@
       </div>
 
 
+      <div class="panel">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+          <div class="display" style="font-size:22px;font-weight:700;">LLM SPEND <span class="mono" style="font-size:12px;color:var(--mute);font-weight:400;">glm-5.3-flash</span></div>
+          <a href="#" id="spend-refresh" class="mono" style="font-size:12px;">refresh</a>
+        </div>
+        <div id="spend-big" style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:10px;"></div>
+        <div id="spend-bars" style="display:flex;align-items:flex-end;gap:3px;height:54px;margin-bottom:6px;"></div>
+        <div id="spend-days" class="mono" style="display:flex;justify-content:space-between;font-size:10px;color:var(--mute);margin-bottom:10px;"></div>
+        <div id="spend-models" class="mono" style="font-size:12px;margin-bottom:10px;"></div>
+        <div id="spend-fuel" class="mono" style="display:flex;flex-wrap:wrap;gap:8px;font-size:12px;"></div>
+        <div class="hint">Bars = LLM $ per day (Chicago), Flash in green, fallback models in grey. Fuel = what each service has left; a red Kimi means the safety net is off.</div>
+      </div>
+
       <div class="panel" style="flex:1;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
           <div class="display" style="font-size:22px;font-weight:700;">HITS <span id="hit-n" style="color:var(--green);"></span></div>
@@ -229,6 +242,68 @@ async function refreshStats() {
       }
     } catch (e) { /* llm chips best-effort */ }
   } catch (e) { /* stats refresh is non-critical */ }
+}
+
+async function loadSpend() {
+  try {
+    const rows = await rpc("llm_spend_daily", { p_passcode: passcode, p_days: 30 });
+    const PRIMARY = "glm-5.3-flash";
+    const today = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Chicago" }));
+    const key = (d) => d.toISOString().slice(0, 10);
+    const tKey = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
+    const mPrefix = tKey.slice(0, 7);
+    const byDay = {}, byModel = {};
+    let flashToday = 0, flashMtd = 0, allToday = 0, allMtd = 0, callsToday = 0, flashCallsToday = 0;
+    (rows || []).forEach((r) => {
+      const u = Number(r.usd) || 0;
+      byDay[r.day] = byDay[r.day] || { flash: 0, other: 0 };
+      if (r.model === PRIMARY) byDay[r.day].flash += u; else byDay[r.day].other += u;
+      if (r.day.startsWith(mPrefix)) {
+        allMtd += u; if (r.model === PRIMARY) flashMtd += u;
+        byModel[r.model] = byModel[r.model] || { calls: 0, usd: 0, today: 0 };
+        byModel[r.model].calls += Number(r.calls); byModel[r.model].usd += u;
+        if (r.day === tKey) byModel[r.model].today += u;
+      }
+      if (r.day === tKey) { allToday += u; callsToday += Number(r.calls); if (r.model === PRIMARY) { flashToday += u; flashCallsToday += Number(r.calls); } }
+    });
+    const dim = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const proj = allMtd / today.getDate() * dim;
+    const netPct = callsToday ? Math.round(100 * (1 - flashCallsToday / callsToday)) : 0;
+    const big = (v, l, c) => '<div><div class="display" style="font-size:26px;font-weight:700;color:' + (c || 'var(--ink)') + ';">' + v + '</div><div class="mono" style="font-size:11px;color:var(--mute);">' + l + '</div></div>';
+    $("spend-big").innerHTML =
+      big("$" + flashToday.toFixed(2), "Flash today", "var(--green)") +
+      big("$" + flashMtd.toFixed(2), "Flash month-to-date", "var(--green)") +
+      big("$" + allToday.toFixed(2), "all models today") +
+      big("$" + proj.toFixed(0), "projected month (all)") +
+      big(netPct + "%", "of today's calls on fallback", netPct > 20 ? "#c0392b" : "var(--mute)");
+    const days = []; for (let i = 13; i >= 0; i--) { const d = new Date(today); d.setDate(today.getDate() - i); days.push(d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0")); }
+    const max = Math.max(0.01, ...days.map((d) => (byDay[d] ? byDay[d].flash + byDay[d].other : 0)));
+    $("spend-bars").innerHTML = days.map((d) => {
+      const v = byDay[d] || { flash: 0, other: 0 }; const tot = v.flash + v.other;
+      const h = Math.round(50 * tot / max); const fh = tot ? Math.round(h * v.flash / tot) : 0;
+      return '<div title="' + d + ' $' + tot.toFixed(2) + '" style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:54px;">' +
+        '<div style="height:' + (h - fh) + 'px;background:#bbb;"></div><div style="height:' + fh + 'px;background:var(--green);"></div>' +
+        (tot ? '' : '<div style="height:2px;background:var(--rule);"></div>') + '</div>';
+    }).join("");
+    $("spend-days").innerHTML = '<span>' + days[0].slice(5) + '</span><span>' + days[13].slice(5) + '</span>';
+    $("spend-models").innerHTML = Object.keys(byModel).sort((a, b) => byModel[b].usd - byModel[a].usd).map((m) =>
+      '<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--rule);' + (m === PRIMARY ? 'color:var(--green);font-weight:600;' : '') + '">' +
+      '<span>' + m + '</span><span>' + fmt(byModel[m].calls) + ' calls · today $' + byModel[m].today.toFixed(2) + ' · MTD $' + byModel[m].usd.toFixed(2) + '</span></div>').join("") || '<div style="color:var(--mute);">No LLM calls yet this month.</div>';
+  } catch (e) { /* non-critical */ }
+  try {
+    const br = await fetch(BASE + "/functions/v1/balances", { method: "POST", headers: HDRS, body: JSON.stringify({ passcode }) });
+    if (!br.ok) return;
+    const b = await br.json();
+    const sbLeft = b.scrapingbee && b.scrapingbee.max ? b.scrapingbee.max - b.scrapingbee.used : null;
+    const kimi = Number(b.kimi_usd);
+    const tag = (l, v, bad) => '<div class="chip" style="' + (bad ? 'border-color:#c0392b;color:#c0392b;' : '') + '"><b>' + v + '</b><span>' + l + '</span></div>';
+    $("spend-fuel").innerHTML =
+      tag("SB credits left", sbLeft == null ? "?" : fmt(sbLeft), sbLeft != null && sbLeft < 30000) +
+      tag("ZB credits", isFinite(b.zerobounce) ? fmt(b.zerobounce) : "?", b.zerobounce < 2000) +
+      tag("Kimi net " + (kimi <= 0 ? "OFF" : "$"), isFinite(kimi) ? "$" + kimi.toFixed(2) : "?", !(kimi > 5)) +
+      tag("SerpApi left", b.serpapi && b.serpapi.left != null ? b.serpapi.left : "?", b.serpapi && b.serpapi.left < 30) +
+      '<div class="chip"><b><a href="https://aihubmix.com/" target="_blank" style="color:inherit;">check</a></b><span>AIHubMix balance (Flash)</span></div>';
+  } catch (e) { /* balances best-effort */ }
 }
 
 async function loadMonthly() {
@@ -343,7 +418,7 @@ $("login").onclick = async () => {
     $("gate").style.display = "none";
     $("app").style.display = "block";
     refreshStats();
-    loadRecent(); loadMonthly();
+    loadRecent(); loadMonthly(); loadSpend();
     loadSchedules();
     setInterval(refreshStats, 60000);
     setInterval(loadRecent, 60000);
@@ -454,7 +529,7 @@ $("start").onclick = async () => {
   $("start").className = "btn-primary"; $("start").textContent = "Start scan";
   $("bar").style.background = "var(--green)";
 };
-document.addEventListener("click", (e) => { if (e.target && e.target.id === "monthly-refresh") { e.preventDefault(); loadMonthly(); } });
+document.addEventListener("click", (e) => { if (e.target && e.target.id === "monthly-refresh") { e.preventDefault(); loadMonthly(); } if (e.target && e.target.id === "spend-refresh") { e.preventDefault(); loadSpend(); } });
 let clientPoll = null;
 async function startClientScan() {
   const n = Math.max(1, Math.min(2800, parseInt($("client-count").value || "25", 10)));
