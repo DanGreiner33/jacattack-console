@@ -208,7 +208,7 @@ let passcode = "", batchId = null, running = false, stopFlag = false, hits = [];
 const $ = (id) => document.getElementById(id);
 
 async function rpc(name, args) {
-  const r = await fetch(BASE + "/rest/v1/rpc/" + name, { method: "POST", headers: HDRS, body: JSON.stringify(args) });
+  const r = await fetch(BASE + "/functions/v1/console-api", { method: "POST", headers: HDRS, body: JSON.stringify({ fn: name, args }) });
   if (!r.ok) {
     const t = await r.text();
     const authFail = t.includes("unauthorized");
