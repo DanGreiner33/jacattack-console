@@ -186,7 +186,6 @@
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
           <div class="display" style="font-size:22px;font-weight:700;">HITS <span id="hit-n" style="color:var(--green);"></span></div>
           <button id="export" style="display:none;padding:4px 12px;border:1px solid var(--ink);background:var(--ink);color:var(--paper);font-weight:600;font-size:13px;">Export CSV</button>
-          <button id="export-roles" style="display:none;padding:4px 12px;border:1px solid var(--ink);background:var(--paper);color:var(--ink);font-weight:600;font-size:13px;">Export all roles</button>
         </div>
         <div id="hits-empty" class="hint" style="margin:0;">Postings found in this batch land here — company, role, date, and the POC to contact.</div>
         <div style="overflow-x:auto;">
@@ -466,7 +465,7 @@ function esc(s) { const d = document.createElement("div"); d.textContent = s == 
 
 function renderHits() {
   $("hit-n").textContent = hits.length ? "· " + hits.length : "";
-  $("export").style.display = hits.length ? "inline-block" : "none"; $("export-roles").style.display = hits.length ? "inline-block" : "none";
+  $("export").style.display = hits.length ? "inline-block" : "none";
   $("hits-empty").style.display = hits.length ? "none" : "block";
   $("hits-table").style.display = hits.length ? "table" : "none";
   $("hits-body").innerHTML = hits.map((h) => {
@@ -493,20 +492,6 @@ $("export").onclick = () => {
   a.download = "jacattack-hits-batch-" + batchId + ".csv";
   a.click();
 };
-
-$("export-roles").onclick = async () => {
-  try {
-    const rows = await rpc("batch_hits_roles", { p_passcode: passcode, p_batch_id: batchId });
-    const cols = ["company","city","state","domain","employee_count","role_idx","title","url","location","posted_at","poc_name","poc_title","poc_email","zb_status","zb_provider"];
-    const q = (v) => '"' + String(v ?? "").replace(/"/g, '""') + '"';
-    const csv = [cols.join(",")].concat((rows || []).map((h) => cols.map((c) => q(h[c])).join(","))).join("\n");
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-    a.download = "jacattack-roles-batch-" + batchId + ".csv";
-    a.click();
-  } catch (e) { alert("Roles export failed: " + (e.message || e)); }
-};
-
 $("start").onclick = async () => {
   if (running) { stopFlag = true; $("start").textContent = "Stopping…"; return; }
   const count = Math.max(1, Math.min(10000, Number($("count").value) || 0));
