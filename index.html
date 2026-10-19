@@ -120,27 +120,29 @@
     <div class="panel">
       <div class="display" style="font-size:22px;font-weight:700;margin-bottom:12px;">CHECK CLIENTS</div>
       <div style="font-size:11px;font-weight:700;letter-spacing:.04em;margin-bottom:4px;">CLIENTS TO CHECK</div>
-      <input id="client-count" class="mono" type="number" value="25" min="1" max="2800" style="width:100%;padding:8px;font-size:18px;font-weight:700;box-sizing:border-box;" />
+      <input id="client-count" class="mono" type="number" value="50" min="1" max="200" style="width:100%;padding:8px;font-size:18px;font-weight:700;box-sizing:border-box;" />
       <div style="display:flex;gap:6px;margin:6px 0 10px;">
         <button class="preset client-preset" data-n="10">10</button>
         <button class="preset client-preset" data-n="25">25</button>
         <button class="preset client-preset" data-n="50">50</button>
       </div>
-      <div style="font-size:11px;font-weight:700;letter-spacing:.04em;margin-bottom:4px;">NICHE</div>
-      <select id="client-niche" class="mono" style="width:100%;padding:8px;font-size:13px;margin-bottom:10px;box-sizing:border-box;">
-        <option value="All">All niches</option>
-        <option value="Legal">Legal</option>
-        <option value="Tax/CPA">Tax/CPA</option>
-        <option value="Accounting">Accounting</option>
-        <option value="Corporate Function">Corporate function (HR, marketing)</option>
-      </select>
       <button id="client-start" class="btn-primary" style="width:100%;font-size:15px;padding:10px;">Check clients</button>
       <div id="client-status" class="mono" style="font-size:12px;color:var(--mute);margin-top:8px;"></div>
-      <div class="hint">Runs until it finds that many clients with openings — one best role each in HITS (open the link to see their full board). Each client rechecks after 30 days.</div>
+      <div class="hint">Finds that many past clients with a current fitting opening and a verified contact, then emails them 1-to-1 through the day (Mon-Fri, 8am-4pm CT). Sends start as soon as the first clients are found. The count is the daily total, so running 50 after 25 adds 25 more.</div>
     </div>
     </div>
 
     <div style="display:flex;flex-direction:column;gap:16px;">
+      <div class="panel" id="act-panel">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;gap:8px;flex-wrap:wrap;">
+          <div class="display" style="font-size:22px;font-weight:700;">CLIENT EMAILS &mdash; <span id="act-range">THIS WEEK</span></div>
+          <div class="mono" style="font-size:12px;"><a href="#" id="act-prev">&larr; prev</a> &nbsp; <a href="#" id="act-next">next &rarr;</a> &nbsp; <a href="#" id="act-refresh">refresh</a></div>
+        </div>
+        <div id="act-totals" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;"></div>
+        <div id="act-days" class="mono" style="display:flex;gap:6px;flex-wrap:wrap;font-size:12px;margin-bottom:10px;"></div>
+        <div id="act-rows" class="mono" style="font-size:12px;max-height:420px;overflow:auto;"></div>
+      </div>
+
       <div class="panel">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
           <div id="batch-title" class="display" style="font-size:22px;font-weight:700;">READY</div>
@@ -430,6 +432,8 @@ $("login").onclick = async () => {
     refreshStats();
     loadRecent(); loadMonthly(); loadSpend();
     loadSchedules();
+    loadClientActivity(); pollClientRun().then((p) => { if (p && p.run && p.run.status === "running" && !clientPoll) clientPoll = setInterval(pollClientRun, 8000); });
+    setInterval(loadClientActivity, 120000);
     setInterval(refreshStats, 60000);
     setInterval(loadRecent, 60000);
     setInterval(loadSchedules, 60000);
@@ -540,30 +544,60 @@ $("start").onclick = async () => {
   $("bar").style.background = "var(--green)";
 };
 document.addEventListener("click", (e) => { if (e.target && e.target.id === "monthly-refresh") { e.preventDefault(); loadMonthly(); } if (e.target && e.target.id === "spend-refresh") { e.preventDefault(); loadSpend(); } });
-let clientPoll = null;
-async function startClientScan() {
-  const n = Math.max(1, Math.min(2800, parseInt($("client-count").value || "25", 10)));
-  const niche = $("client-niche").value;
-  $("client-status").textContent = "starting…";
+let clientPoll = null, actOffset = 0;
+function clientStatusText(p) {
+  const r = p.run, run = r && r.status === "running";
+  let t = "";
+  if (run) t = "finding clients... " + p.found_today + "/" + r.requested + " found";
+  else if (r) t = "run finished" + (r.note ? " (" + r.note + ")" : "");
+  t += (t ? " | " : "") + p.sent_today + " sent today, " + p.queued + " queued";
+  if (p.failed_today) t += ", " + p.failed_today + " failed";
+  if (String(p.live_send) !== "true") t += " | SENDING IS OFF";
+  return t;
+}
+async function pollClientRun() {
   try {
-    const r = await rpc("request_client_scan", { p_passcode: passcode, p_count: n, p_niche: niche });
-    if (!r.seeded) { $("client-status").textContent = "no clients available to check (all on 30-day cooldown for this niche)"; return; }
-    $("client-status").textContent = "batch #" + r.batch_id + " — finding " + n + " clients with openings…";
+    const p = await rpc("reeng_run_status", { p_passcode: passcode });
+    $("client-status").textContent = clientStatusText(p);
+    loadClientActivity();
+    return p;
+  } catch (e) { return null; }
+}
+async function startClientScan() {
+  const n = Math.max(1, Math.min(200, parseInt($("client-count").value || "50", 10)));
+  $("client-status").textContent = "starting...";
+  try {
+    const r = await rpc("reeng_start_run", { p_passcode: passcode, p_count: n });
+    $("client-status").textContent = "run #" + r.run_id + " started - target " + n + " clients today (" + r.have_today + " already found today)";
     if (clientPoll) clearInterval(clientPoll);
-    clientPoll = setInterval(async () => {
-      try {
-        const p = await rpc("batch_progress", { p_passcode: passcode, p_batch_id: r.batch_id });
-        $("client-status").textContent = "batch #" + r.batch_id + " — " + p.done + " checked, " + p.hits + "/" + n + " with openings";
-        viewBatch(r.batch_id, n);
-        if (p.status === "done" || p.hits >= n) {
-          clearInterval(clientPoll); clientPoll = null;
-          $("client-status").textContent = "done — " + p.done + " checked, " + p.hits + " clients with openings";
-          viewBatch(r.batch_id, n); loadRecent();
-        }
-      } catch (e) { /* keep polling */ }
-    }, 6000);
+    clientPoll = setInterval(pollClientRun, 8000);
   } catch (err) { $("client-status").textContent = "failed: " + err.message; }
 }
+const CAT = { interested: ["INTERESTED", "var(--green)"], not_interested: ["NOT INTERESTED", "var(--red)"], ooo: ["OUT OF OFFICE", "var(--mute)"], reply: ["REPLIED", "#0E5FA8"], bounce: ["BOUNCED", "var(--red)"] };
+async function loadClientActivity() {
+  try {
+    const w = await rpc("reeng_week", { p_passcode: passcode, p_offset: actOffset });
+    $("act-range").textContent = (actOffset === 0 ? "THIS WEEK" : w.week_start + " to " + w.week_end);
+    const t = w.totals;
+    const chip = (k, v) => '<div class="chip"><b>' + v + '</b><span>' + k + '</span></div>';
+    $("act-totals").innerHTML = chip("sent", t.sent) + chip("replied", t.replied) + chip("interested", t.interested) + chip("not interested", t.not_interested) + chip("out of office", t.ooo) + chip("bounced", t.bounced) + (actOffset === 0 ? chip("queued", w.queued) : "");
+    const dn = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    $("act-days").innerHTML = w.days.map((d, i) => '<div class="chip"><span>' + dn[i] + " " + d.date.slice(5) + "</span><b>" + d.sent + "</b></div>").join("");
+    if (!w.rows.length) { $("act-rows").innerHTML = '<div style="color:var(--mute);">No client emails sent this week yet.</div>'; return; }
+    $("act-rows").innerHTML = "<table><thead><tr><th>Sent (CT)</th><th>Client</th><th>Contact</th><th>Role</th><th>Reply</th></tr></thead><tbody>" + w.rows.map((r) => {
+      const dt = new Date(r.sent_at).toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+      const c = r.reply ? (CAT[r.reply] || [r.reply, "inherit"]) : null;
+      const reply = c ? '<b style="color:' + c[1] + '">' + c[0] + "</b>" + (r.reply_snippet ? '<div style="color:var(--mute);max-width:260px;">' + esc(r.reply_snippet.slice(0, 120)) + "</div>" : "") : '<span style="color:var(--mute)">-</span>';
+      return "<tr><td>" + dt + "</td><td>" + esc(r.client) + "</td><td>" + esc(r.poc) + '<div style="color:var(--mute)">' + esc(r.email) + "</div></td><td>" + esc(r.role || "") + "</td><td>" + reply + "</td></tr>";
+    }).join("") + "</tbody></table>";
+  } catch (e) { $("act-rows").textContent = "Could not load activity: " + e.message; }
+}
+document.addEventListener("click", (e) => {
+  const id = e.target && e.target.id;
+  if (id === "act-prev") { e.preventDefault(); actOffset--; loadClientActivity(); }
+  if (id === "act-next") { e.preventDefault(); if (actOffset < 0) { actOffset++; loadClientActivity(); } }
+  if (id === "act-refresh") { e.preventDefault(); loadClientActivity(); }
+});
 document.addEventListener("click", async (e) => {
   if (e.target && e.target.id === "client-start") { e.preventDefault(); startClientScan(); }
   if (e.target && e.target.id === "recent-toggle") {
