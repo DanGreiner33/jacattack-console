@@ -291,8 +291,9 @@
         <div class="hint" style="margin:4px 0 8px;">Every domain here is its own Microsoft 365 account, and each has to approve the app once. For each: open its approval page, sign in as that account's admin (a private window per account keeps them apart), click <b>Accept</b>, then press <b>Test all connections</b>. Nothing opens by itself.</div>
         <div class="ap-wrap" style="background:#fff;"><table class="ap-table"><thead><tr><th>Domain</th><th style="width:90px">Mailboxes</th><th style="width:210px">Status</th><th style="width:250px"></th></tr></thead><tbody id="ap-appr-rows"></tbody></table></div>
       </div>
+      <div id="ap-mb-filters" class="ap-chips" style="margin-bottom:8px;" role="group" aria-label="Show"></div>
       <div class="ap-wrap"><table class="ap-table">
-        <colgroup><col><col style="width:80px"><col style="width:120px"><col style="width:80px"><col style="width:90px"><col style="width:260px"></colgroup>
+        <colgroup><col><col style="width:80px"><col style="width:120px"><col style="width:80px"><col style="width:90px"><col style="width:330px"></colgroup>
         <thead><tr><th>Mailbox</th><th class="ap-num">Sent</th><th class="ap-num">Today</th><th class="ap-num">Week</th><th class="ap-num">Bounce</th><th></th></tr></thead>
         <tbody id="ap-mb"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
       </table></div>
@@ -808,7 +809,7 @@ document.addEventListener("click", async (e) => {
 });
 
 /* ===================== COLD AUTOPILOT TAB (laid out like the FCP Hub's Autopilot page) ===================== */
-let apData = null, apFeed = "sent", apFilter = "all", apLeadsF = "ready", apTimer = null, apBusy = false;
+let apMbFilter = "all", apData = null, apFeed = "sent", apFilter = "all", apLeadsF = "ready", apTimer = null, apBusy = false;
 const AP_SKIP = { not_microsoft: "Their email isn't on Microsoft", no_job_title: "Posting had no usable title", contact_touched_90d: "Emailed this person in the last 90 days",
   company_touched_60d: "Emailed this company in the last 60 days", foreign_tld: "Not a US address", institutional_domain: "Government or school",
   address_bounced: "Address bounced before", never_contact: "On the never-contact list", client: "Existing client", company_suppressed: "Company is suppressed",
@@ -931,15 +932,23 @@ function apPaint() {
       : '<tr><td colspan="6" class="empty">Nothing has come back yet: no replies, bounces or out-of-office notes.</td></tr>';
   }
 
-  // By mailbox
-  $("ap-mb-sub").textContent = boxes.length ? apN(active.length) + " sending · " + apN(cap) + " emails a weekday" : "";
-  $("ap-mb").innerHTML = boxes.length ? boxes.map((m) => {
-    const note = m.active ? (m.next_slot ? "next send around " + esc(apHhmm(m.next_slot)) : "no more sends planned today")
-      : (m.connected_at ? "Paused · " + esc(m.paused_reason || "") : "Not connected yet · " + esc((m.last_error || m.paused_reason || "run Test connection").slice(0, 200)));
-    return "<tr><td><b>" + apAddr(m.email) + '</b><div class="ap-why">' + (m.display_name ? esc(m.display_name) + " · " : "") + note + '</div></td><td class="ap-num">' + apN(m.total) + '</td><td class="ap-num">' + apN(m.today) + "/" +
+  // By mailbox: connected ones first, a clear label for each state, and filter chips
+  const conn = boxes.filter((m) => m.connected_at);
+  $("ap-mb-sub").textContent = boxes.length ? apN(conn.length) + " connected · " + apN(active.length) + " sending · " + apN(cap) + " emails a weekday" : "";
+  const MB_FILTERS = [["all", "All", () => true], ["connected", "Connected", (m) => !!m.connected_at], ["notconnected", "Not connected", (m) => !m.connected_at], ["active", "Sending", (m) => m.active]];
+  $("ap-mb-filters").innerHTML = MB_FILTERS.map(([k, l, f]) => '<button type="button" class="ap-chip" data-apmb="' + k + '" aria-pressed="' + (apMbFilter === k) + '">' + esc(l) + " · " + boxes.filter(f).length + "</button>").join("");
+  const rank = (m) => m.active ? 0 : m.connected_at ? 1 : 2;
+  const shownBoxes = boxes.filter((MB_FILTERS.find((x) => x[0] === apMbFilter) || MB_FILTERS[0])[2]).sort((x, y) => rank(x) - rank(y) || String(x.email).localeCompare(String(y.email)));
+  $("ap-mb").innerHTML = shownBoxes.length ? shownBoxes.map((m) => {
+    let pillHtml, note;
+    if (m.active) { pillHtml = '<span class="ap-state emailed">SENDING</span>'; note = m.next_slot ? "next send around " + esc(apHhmm(m.next_slot)) : "no more sends planned today"; }
+    else if (m.connected_at && m.paused_reason && !/^connected:/.test(m.paused_reason)) { pillHtml = '<span class="ap-state wont">PAUSED</span>'; note = esc(m.paused_reason); }
+    else if (m.connected_at) { pillHtml = '<span class="ap-state emailed">CONNECTED</span>'; note = "ready: press Activate to start sending"; }
+    else { pillHtml = '<span class="ap-state looking">NOT CONNECTED</span>'; note = esc((m.last_error || "run Test connection").slice(0, 160)); }
+    return "<tr><td><b>" + apAddr(m.email) + "</b> " + pillHtml + '<div class="ap-why">' + (m.display_name ? esc(m.display_name) + " · " : "") + note + '</div></td><td class="ap-num">' + apN(m.total) + '</td><td class="ap-num">' + apN(m.today) + "/" +
       '<input class="ap-cap" data-email="' + esc(m.email) + '" type="number" min="1" max="50" value="' + esc(m.daily_cap) + '" title="Daily cap. Press Enter to save." style="width:46px;padding:2px 4px;font-size:12px;"></td><td class="ap-num">' + apN(m.week) + '</td><td class="ap-num">' + apN(m.bounced) + "</td>" +
-      '<td><button type="button" class="ap-btn ap-test" data-email="' + esc(m.email) + '">Test connection</button> ' + (m.connected_at ? '<button type="button" class="ap-btn ap-testsend" data-email="' + esc(m.email) + '">Send test email</button> ' : "") + '<button type="button" class="ap-btn ap-toggle" data-email="' + esc(m.email) + '" data-active="' + (m.active ? "0" : "1") + '">' + (m.active ? "Pause" : "Activate") + "</button></td></tr>";
-  }).join("") : '<tr><td colspan="6" class="empty">No sending mailboxes yet. Add one below.</td></tr>';
+      '<td><button type="button" class="ap-btn ap-test" data-email="' + esc(m.email) + '">Test connection</button> ' + (m.connected_at ? '<button type="button" class="ap-btn ap-testsend" data-email="' + esc(m.email) + '">Send test email</button> ' : "") + '<button type="button" class="ap-btn ap-toggle" data-email="' + esc(m.email) + '" data-active="' + (m.active ? "0" : "1") + '"' + (!m.active && !m.connected_at ? " disabled" : "") + ">" + (m.active ? "Pause" : "Activate") + "</button></td></tr>";
+  }).join("") : '<tr><td colspan="6" class="empty">' + (boxes.length ? "No mailboxes match this filter." : "No sending mailboxes yet. Add one below.") + "</td></tr>";
 
   // Approvals needed: one row per domain that has a mailbox that is not connected yet
   const un = boxes.filter((m) => !m.connected_at), byDom = {};
@@ -999,6 +1008,7 @@ document.addEventListener("click", async (e) => {
   const tok = t.closest(".ap-token");
   if (tok) { const ta = apLastField || $("ap-msg-body"), a = ta.selectionStart == null ? ta.value.length : ta.selectionStart, z = ta.selectionEnd == null ? a : ta.selectionEnd;
     ta.value = ta.value.slice(0, a) + tok.dataset.tok + ta.value.slice(z); ta.focus(); ta.selectionStart = ta.selectionEnd = a + tok.dataset.tok.length; ta.dispatchEvent(new Event("input", { bubbles: true })); return; }
+  const mf = t.closest("[data-apmb]"); if (mf) { apMbFilter = mf.dataset.apmb; apPaint(); return; }
   const f = t.closest("[data-apf]"); if (f) { apFilter = f.dataset.apf; apPaint(); return; }
   const ft = t.closest("[data-apfeed]"); if (ft) { apFeed = ft.dataset.apfeed; apPaint(); return; }
   const fl = t.closest("[data-apleads]"); if (fl) { apLeadsF = fl.dataset.apleads; apPaint(); return; }
