@@ -307,26 +307,37 @@
       <div id="ap-switches" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px;"></div>
       <div id="ap-facts" class="mono" style="font-size:12px;color:var(--mute);"></div>
 
-      <div class="ap-h">Signature and messages</div>
+      <div class="ap-h">The emails</div>
+      <div class="hint" style="margin:0 0 6px;">Click a token to put it in the message you are editing. Each is filled in for the person being emailed. The signature is added underneath automatically.</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">
+        <button type="button" class="ap-token" data-tok="{first_name}" title="The contact's first name">{first_name}</button>
+        <button type="button" class="ap-token" data-tok="{company}" title="The company name, cleaned up">{company}</button>
+        <button type="button" class="ap-token" data-tok="{job_title}" title="The role from the posting">{job_title}</button>
+        <button type="button" class="ap-token" data-tok="{a_an}" title="a or an, to match the job title">{a_an}</button>
+      </div>
       <div class="grid" style="grid-template-columns:1fr 1fr;">
         <div>
-          <label class="label" for="ap-sig">Signature (plain text or HTML)</label>
-          <textarea id="ap-sig" rows="7" class="mono" style="width:100%;padding:8px;border:1px solid var(--ink);font-size:12px;"></textarea>
-          <button class="ap-save ap-btn" data-key="cold_signature_html" data-src="ap-sig" style="margin-top:6px;">Save signature</button>
-          <div class="label" style="margin-top:10px;">Preview</div>
-          <iframe id="ap-sig-prev" sandbox="" style="width:100%;height:120px;border:1px solid var(--rule);background:#fff;"></iframe>
+          <div class="label">First email</div>
+          <label class="label" for="ap-subj" style="margin-top:6px;">Subject</label>
+          <input id="ap-subj" class="mono ap-msgfield" placeholder="{job_title} - Opening">
+          <label class="label" for="ap-first" style="margin-top:8px;">Message</label>
+          <textarea id="ap-first" rows="11" class="mono ap-msgfield" style="width:100%;padding:8px;border:1px solid var(--ink);font-size:12px;"></textarea>
+          <div style="display:flex;gap:6px;margin-top:6px;">
+            <button class="ap-save ap-btn" data-key="cold_email_subject_template" data-src="ap-subj">Save subject</button>
+            <button class="ap-save ap-btn" data-key="cold_email_template_body" data-src="ap-first">Save first email</button>
+          </div>
+          <div class="label" style="margin-top:14px;">Follow-up (sent in the same thread; leave empty for none)</div>
+          <textarea id="ap-fu" rows="6" class="mono ap-msgfield" style="width:100%;padding:8px;border:1px solid var(--ink);font-size:12px;" placeholder="Hi {first_name}, ..."></textarea>
+          <button class="ap-save ap-btn" data-key="cold_followup_body" data-src="ap-fu" style="margin-top:6px;">Save follow-up</button>
         </div>
         <div>
-          <label class="label" for="ap-fu">Follow-up message (same thread; leave empty for none)</label>
-          <textarea id="ap-fu" rows="5" class="mono" style="width:100%;padding:8px;border:1px solid var(--ink);font-size:12px;" placeholder="Hi {first_name}, ..."></textarea>
-          <div class="hint" style="margin-top:4px;">Click a token to put it in the message at your cursor. It is filled in for each person. The signature is added underneath automatically.</div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">
-            <button type="button" class="ap-token" data-tok="{first_name}" title="The contact's first name">{first_name}</button>
-            <button type="button" class="ap-token" data-tok="{company}" title="The company name, cleaned up">{company}</button>
-            <button type="button" class="ap-token" data-tok="{job_title}" title="The role from the posting">{job_title}</button>
-            <button type="button" class="ap-token" data-tok="{a_an}" title="a or an, to match the job title">{a_an}</button>
-          </div>
-          <button class="ap-save ap-btn" data-key="cold_followup_body" data-src="ap-fu" style="margin-top:6px;">Save follow-up</button>
+          <div class="label">Preview of the first email <span style="text-transform:none;font-weight:400;">(sample person: Alex at Acme CPA, Staff Accountant)</span></div>
+          <div id="ap-first-prev" style="border:1px solid var(--rule);background:#fff;padding:12px 14px;font-family:Aptos,Calibri,Helvetica,sans-serif;font-size:14px;min-height:200px;"></div>
+          <label class="label" for="ap-sig" style="margin-top:14px;">Signature (plain text or HTML)</label>
+          <textarea id="ap-sig" rows="6" class="mono" style="width:100%;padding:8px;border:1px solid var(--ink);font-size:12px;"></textarea>
+          <button class="ap-save ap-btn" data-key="cold_signature_html" data-src="ap-sig" style="margin-top:6px;">Save signature</button>
+          <div class="label" style="margin-top:10px;">Signature preview</div>
+          <iframe id="ap-sig-prev" sandbox="" style="width:100%;height:110px;border:1px solid var(--rule);background:#fff;"></iframe>
           <label class="label" for="ap-fwd" style="margin-top:14px;">Forward positive replies to</label>
           <input id="ap-fwd" class="mono" placeholder="a@x.com,b@y.com">
           <button class="ap-save ap-btn" data-key="cold_reply_alert_to" data-src="ap-fwd" style="margin-top:6px;">Save addresses</button>
@@ -907,6 +918,7 @@ function apPaint() {
     (c.cold_inbox_watch_last_run ? esc(apWhen(c.cold_inbox_watch_last_run)) : "never") + " · leads refreshed " + (c.cold_leads_last_refresh ? esc(apWhen(c.cold_leads_last_refresh)) : "never");
   const setIf = (id, v) => { const el = $(id); if (document.activeElement !== el) el.value = v; };
   setIf("ap-sig", d.signature_html || ""); setIf("ap-fu", d.followup_body || ""); setIf("ap-fwd", c.cold_reply_alert_to || "");
+  setIf("ap-subj", c.cold_email_subject_template || ""); setIf("ap-first", c.cold_email_template_body || ""); apFirstPreview();
   if (document.activeElement !== $("ap-unknown")) $("ap-unknown").checked = c.cold_unknown_size_allowed === "true";
   if ($("ap-sig-prev").dataset.v !== (d.signature_html || "")) { $("ap-sig-prev").srcdoc = d.signature_html || ""; $("ap-sig-prev").dataset.v = d.signature_html || ""; }
   $("ap-skips").innerHTML = (d.skip_reasons || []).length ? '<table class="ap-table"><tbody>' + d.skip_reasons.map((x) => "<tr><td>" + esc(AP_SKIP[x.reason] || x.reason || "") + '</td><td class="ap-num" style="width:80px">' + apN(x.n) + "</td></tr>").join("") + "</tbody></table>" : '<div class="hint">Nothing set aside yet.</div>';
@@ -943,7 +955,7 @@ document.addEventListener("click", async (e) => {
   if (t.id === "ap-close-details") { $("ap-details").style.display = "none"; $("ap-main").style.display = "block"; return; }
   if (t.id === "ap-modal-close" || t.id === "ap-modal") { e.preventDefault(); $("ap-modal").style.display = "none"; return; }
   const tok = t.closest(".ap-token");
-  if (tok) { const ta = $("ap-fu"), a = ta.selectionStart == null ? ta.value.length : ta.selectionStart, z = ta.selectionEnd == null ? a : ta.selectionEnd;
+  if (tok) { const ta = apLastField || $("ap-first"), a = ta.selectionStart == null ? ta.value.length : ta.selectionStart, z = ta.selectionEnd == null ? a : ta.selectionEnd;
     ta.value = ta.value.slice(0, a) + tok.dataset.tok + ta.value.slice(z); ta.focus(); ta.selectionStart = ta.selectionEnd = a + tok.dataset.tok.length; return; }
   const f = t.closest("[data-apf]"); if (f) { apFilter = f.dataset.apf; apPaint(); return; }
   const ft = t.closest("[data-apfeed]"); if (ft) { apFeed = ft.dataset.apfeed; apPaint(); return; }
@@ -1006,6 +1018,15 @@ document.addEventListener("keydown", async (e) => {
 });
 const apSigHtml = (v) => /<[a-zA-Z\/!]/.test(v) ? v : esc(v).replace(/\r/g, "").replace(/\n/g, "<br>\n");
 $("ap-sig").addEventListener("input", () => { $("ap-sig-prev").srcdoc = apSigHtml($("ap-sig").value); $("ap-sig-prev").dataset.v = "typing"; });
+
+let apLastField = null;
+document.addEventListener("focusin", (e) => { if (e.target && e.target.classList && e.target.classList.contains("ap-msgfield")) apLastField = e.target; });
+function apFirstPreview() {
+  const fill = (t) => String(t || "").replace(/\{first_name\}/g, "Alex").replace(/\{company\}/g, "Acme CPA").replace(/\{a_an\}/g, "a").replace(/\{job_title\}/g, "Staff Accountant").replace(/[ \t]*\{signature\}/g, "");
+  const sig = apSigHtml($("ap-sig").value);
+  $("ap-first-prev").innerHTML = '<div style="color:#555;font-size:12px;margin-bottom:8px;"><b>Subject:</b> ' + esc(fill($("ap-subj").value)) + "</div><div>" + esc(fill($("ap-first").value)).replace(/\n/g, "<br>") + '</div><div style="margin-top:12px;">' + sig + "</div>";
+}
+["ap-subj", "ap-first", "ap-sig"].forEach((id) => $(id).addEventListener("input", apFirstPreview));
 </script>
 </body>
 </html>
