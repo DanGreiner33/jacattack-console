@@ -83,6 +83,8 @@
   .ap-msg.ours .ap-msg-meta b { color: #7a5200; }
   .ap-msg-sub { font-weight: 650; margin: 6px 0 0; }
   .ap-msg-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; margin-top: 8px; }
+  .ap-token { padding: 3px 9px; border: 1px solid var(--ink); background: var(--paper); font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
+  .ap-token:hover { background: var(--amber); }
 </style>
 </head>
 <body>
@@ -308,7 +310,7 @@
       <div class="ap-h">Signature and messages</div>
       <div class="grid" style="grid-template-columns:1fr 1fr;">
         <div>
-          <label class="label" for="ap-sig">Signature (HTML)</label>
+          <label class="label" for="ap-sig">Signature (plain text or HTML)</label>
           <textarea id="ap-sig" rows="7" class="mono" style="width:100%;padding:8px;border:1px solid var(--ink);font-size:12px;"></textarea>
           <button class="ap-save ap-btn" data-key="cold_signature_html" data-src="ap-sig" style="margin-top:6px;">Save signature</button>
           <div class="label" style="margin-top:10px;">Preview</div>
@@ -317,7 +319,13 @@
         <div>
           <label class="label" for="ap-fu">Follow-up message (same thread; leave empty for none)</label>
           <textarea id="ap-fu" rows="5" class="mono" style="width:100%;padding:8px;border:1px solid var(--ink);font-size:12px;" placeholder="Hi {first_name}, ..."></textarea>
-          <div class="hint" style="margin-top:2px;">Tokens: {first_name} {company} {job_title} {a_an}. The signature is added underneath automatically.</div>
+          <div class="hint" style="margin-top:4px;">Click a token to put it in the message at your cursor. It is filled in for each person. The signature is added underneath automatically.</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">
+            <button type="button" class="ap-token" data-tok="{first_name}" title="The contact's first name">{first_name}</button>
+            <button type="button" class="ap-token" data-tok="{company}" title="The company name, cleaned up">{company}</button>
+            <button type="button" class="ap-token" data-tok="{job_title}" title="The role from the posting">{job_title}</button>
+            <button type="button" class="ap-token" data-tok="{a_an}" title="a or an, to match the job title">{a_an}</button>
+          </div>
           <button class="ap-save ap-btn" data-key="cold_followup_body" data-src="ap-fu" style="margin-top:6px;">Save follow-up</button>
           <label class="label" for="ap-fwd" style="margin-top:14px;">Forward positive replies to</label>
           <input id="ap-fwd" class="mono" placeholder="a@x.com,b@y.com">
@@ -934,6 +942,9 @@ document.addEventListener("click", async (e) => {
   if (t.id === "ap-open-details") { $("ap-main").style.display = "none"; $("ap-details").style.display = "block"; window.scrollTo(0, 0); return; }
   if (t.id === "ap-close-details") { $("ap-details").style.display = "none"; $("ap-main").style.display = "block"; return; }
   if (t.id === "ap-modal-close" || t.id === "ap-modal") { e.preventDefault(); $("ap-modal").style.display = "none"; return; }
+  const tok = t.closest(".ap-token");
+  if (tok) { const ta = $("ap-fu"), a = ta.selectionStart == null ? ta.value.length : ta.selectionStart, z = ta.selectionEnd == null ? a : ta.selectionEnd;
+    ta.value = ta.value.slice(0, a) + tok.dataset.tok + ta.value.slice(z); ta.focus(); ta.selectionStart = ta.selectionEnd = a + tok.dataset.tok.length; return; }
   const f = t.closest("[data-apf]"); if (f) { apFilter = f.dataset.apf; apPaint(); return; }
   const ft = t.closest("[data-apfeed]"); if (ft) { apFeed = ft.dataset.apfeed; apPaint(); return; }
   const fl = t.closest("[data-apleads]"); if (fl) { apLeadsF = fl.dataset.apleads; apPaint(); return; }
@@ -993,7 +1004,8 @@ document.addEventListener("keydown", async (e) => {
     try { await rpc("cold_set_mailbox", { p_passcode: passcode, p_email: e.target.dataset.email, p_cap: parseInt(e.target.value, 10) }); await apLoad(); } catch (er) { alert(apErr(er)); }
   }
 });
-$("ap-sig").addEventListener("input", () => { $("ap-sig-prev").srcdoc = $("ap-sig").value; $("ap-sig-prev").dataset.v = $("ap-sig").value; });
+const apSigHtml = (v) => /<[a-zA-Z\/!]/.test(v) ? v : esc(v).replace(/\r/g, "").replace(/\n/g, "<br>\n");
+$("ap-sig").addEventListener("input", () => { $("ap-sig-prev").srcdoc = apSigHtml($("ap-sig").value); $("ap-sig-prev").dataset.v = "typing"; });
 </script>
 </body>
 </html>
