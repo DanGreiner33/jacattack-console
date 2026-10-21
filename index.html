@@ -42,8 +42,47 @@
   .tabbar { display: flex; gap: 0; margin-bottom: 16px; border-bottom: 2px solid var(--ink); }
   .tabbtn { padding: 10px 22px; border: 2px solid var(--ink); border-bottom: none; background: var(--paper); font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 20px; margin-right: 6px; color: var(--ink); }
   .tabbtn.on { background: var(--ink); color: var(--paper); }
-  .ap-row:hover td { background: #FFF7E0; }
   textarea { font-family: inherit; }
+  /* Autopilot tab, laid out like the FCP Hub's Autopilot page */
+  .ap-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 16px 0 0; }
+  .ap-tile { background: var(--paper); border: 1px solid var(--rule); border-top: 3px solid var(--rule); padding: 12px 14px; }
+  .ap-tile .l { font-weight: 600; font-size: 13px; }
+  .ap-tile .n { font-family: 'IBM Plex Mono', monospace; font-size: 26px; font-weight: 600; margin-top: 4px; }
+  .ap-tile .d { color: var(--mute); font-size: 12px; margin-top: 2px; }
+  .ap-h { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 22px; margin: 26px 0 8px; }
+  .ap-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .ap-chip { padding: 5px 12px; border: 1px solid var(--ink); background: var(--paper); font-size: 13px; }
+  .ap-chip[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  .ap-btn { padding: 5px 12px; border: 1px solid var(--ink); background: var(--paper); font-size: 13px; font-weight: 600; }
+  .ap-btn:hover:not(:disabled) { background: var(--amber); }
+  .ap-btn:disabled { opacity: .55; cursor: default; }
+  .ap-link { background: none; border: none; color: #0E5FA8; font-size: 14px; padding: 0; text-decoration: underline; }
+  .ap-pill { display: inline-block; padding: 4px 12px; border: 1px solid var(--ink); font-size: 13px; font-weight: 700; background: var(--paper); }
+  .ap-pill.ok { background: var(--green); color: #fff; border-color: var(--green); }
+  .ap-pill.warn { background: var(--amber); }
+  .ap-banner { border: 1px solid var(--red); color: var(--red); padding: 6px 10px; margin: 8px 0 0; font-size: 13px; background: var(--paper); }
+  .ap-wrap { background: var(--paper); border: 1px solid var(--rule); overflow-x: auto; max-width: 100%; }
+  table.ap-table { table-layout: fixed; width: 100%; }
+  table.ap-table th, table.ap-table td { padding: 9px 12px; font-size: 13px; overflow-wrap: anywhere; }
+  table.ap-table td.ap-when { white-space: nowrap; }
+  table.ap-table td.empty { color: var(--mute); text-align: center; padding: 18px; }
+  .ap-num { text-align: right; font-variant-numeric: tabular-nums; }
+  .ap-why { color: var(--mute); font-size: 12px; margin-top: 2px; }
+  .ap-clip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  tr[data-apthread] { cursor: pointer; }
+  tr[data-apthread]:hover td { background: #FFF7E0; }
+  .ap-state { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .04em; padding: 2px 7px; border: 1px solid var(--ink); white-space: normal; }
+  .ap-state.emailed { background: #E3F4EC; border-color: var(--green); color: #0f5d3c; }
+  .ap-state.wont { background: #FBE9E5; border-color: var(--red); color: var(--red); }
+  .ap-state.you { background: #FBE9E5; border-color: var(--red); color: var(--red); }
+  .ap-state.next { background: #FFF3D1; border-color: var(--amber); color: #7a5200; }
+  .ap-state.looking { background: var(--bg); border-color: var(--rule); color: var(--mute); }
+  .ap-msg { border-top: 1px solid var(--rule); padding: 14px 0; }
+  .ap-msg-meta { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; font-size: 13px; color: var(--mute); }
+  .ap-msg-meta b { color: var(--ink); }
+  .ap-msg.ours .ap-msg-meta b { color: #7a5200; }
+  .ap-msg-sub { font-weight: 650; margin: 6px 0 0; }
+  .ap-msg-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; margin-top: 8px; }
 </style>
 </head>
 <body>
@@ -205,95 +244,104 @@
   <div id="view-auto" style="display:none;">
     <div id="ap-err" class="err" style="display:none;margin:0 0 12px;"></div>
 
-    <div class="panel" style="margin-bottom:16px;">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
-        <div class="display" style="font-size:22px;font-weight:700;">COLD AUTOPILOT</div>
-        <div class="mono" style="font-size:12px;"><span id="ap-updated" style="color:var(--mute);"></span> &nbsp; <a href="#" id="ap-refresh">refresh</a></div>
-      </div>
-      <div id="ap-switches" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;"></div>
-      <div id="ap-banners"></div>
-      <div id="ap-facts" class="mono" style="font-size:12px;color:var(--mute);margin-top:8px;"></div>
-    </div>
-
-    <div class="panel" style="margin-bottom:16px;">
-      <div id="ap-totals" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
-    </div>
-
-    <div class="panel" style="margin-bottom:16px;">
-      <div class="display" style="font-size:22px;font-weight:700;margin-bottom:8px;">MAILBOXES</div>
-      <div style="overflow-x:auto;"><table id="ap-mail-table"></table></div>
-      <div style="border-top:1px solid var(--rule);margin-top:14px;padding-top:12px;">
-        <div class="label">Add a mailbox</div>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;">
-          <div style="flex:2;min-width:220px;"><input id="ap-new-email" type="email" placeholder="name@domain.com" class="mono"></div>
-          <div style="width:110px;"><input id="ap-new-cap" type="number" min="1" max="50" value="5" class="mono" title="emails per weekday"></div>
-          <div style="flex:1;min-width:140px;"><input id="ap-new-name" placeholder="Display name (optional)"></div>
-          <button id="ap-add" class="btn-primary" style="width:auto;padding:8px 18px;font-size:15px;">Add</button>
+    <div id="ap-main">
+      <div style="display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px;">
+        <div style="flex:1;min-width:260px;">
+          <div class="display" style="font-size:30px;font-weight:700;line-height:1.1;">Cold autopilot</div>
+          <div class="hint" style="font-size:13px;margin-top:4px;max-width:760px;">Check Leads finds companies with a current posting and a verified contact. Each of those contacts gets our opening email from a JacAttack mailbox at a random time through the workday, plus one follow-up 3 days later if nobody has replied.</div>
         </div>
-        <div class="hint">Daily cap = emails per weekday from this mailbox (start new domains low, for example 5). A new mailbox starts paused: press <b>Test connection</b>, then <b>Activate</b>.</div>
-        <div id="ap-add-msg" style="margin-top:8px;font-size:13px;"></div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span id="ap-status" class="ap-pill">Loading…</span>
+          <button type="button" id="ap-open-details" class="ap-btn">Behind the scenes</button>
+        </div>
       </div>
+
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0 0;"><span id="ap-refreshed" class="hint" style="margin:0;"></span><button type="button" id="ap-refresh" class="ap-btn">Refresh</button></div>
+      <div id="ap-banners"></div>
+      <p id="ap-sub" style="margin:10px 0 0;line-height:1.55;font-size:14px;">Loading…</p>
+      <div id="ap-tiles" class="ap-tiles"></div>
+
+      <div class="ap-h">Responses <span id="ap-resp-sub" class="hint" style="margin:0;font-weight:400;text-transform:none;"></span></div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px;">
+        <div id="ap-resp-filters" class="ap-chips" role="group" aria-label="Show"></div>
+        <button type="button" class="ap-btn" id="ap-inbox-check" title="Read every sending mailbox now instead of waiting for the next check. New positive or neutral replies are forwarded straight away.">Check inboxes now</button><span id="ap-inbox-msg" class="hint" style="margin:0;"></span>
+      </div>
+      <div class="ap-wrap"><table class="ap-table">
+        <colgroup><col style="width:140px"><col style="width:19%"><col><col style="width:14%"><col style="width:16%"><col style="width:15%"></colgroup>
+        <thead><tr><th>When</th><th>Company</th><th>Reply</th><th>Read as</th><th>To the team</th><th>Mailbox</th></tr></thead>
+        <tbody id="ap-resp"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+      </table></div>
+
+      <div class="ap-h">Live feed</div>
+      <div id="ap-feed-tabs" class="ap-chips" role="group" aria-label="Feed"></div>
+      <div class="ap-wrap" style="margin-top:10px;"><table class="ap-table">
+        <colgroup id="ap-feed-cols"></colgroup>
+        <thead id="ap-feed-head"></thead>
+        <tbody id="ap-feed"><tr><td class="empty">Loading…</td></tr></tbody>
+      </table></div>
+
+      <div class="ap-h">By mailbox <span id="ap-mb-sub" class="hint" style="margin:0;font-weight:400;text-transform:none;"></span></div>
+      <div class="ap-wrap"><table class="ap-table">
+        <colgroup><col><col style="width:80px"><col style="width:120px"><col style="width:80px"><col style="width:90px"><col style="width:260px"></colgroup>
+        <thead><tr><th>Mailbox</th><th class="ap-num">Sent</th><th class="ap-num">Today</th><th class="ap-num">Week</th><th class="ap-num">Bounce</th><th></th></tr></thead>
+        <tbody id="ap-mb"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+      </table></div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;">
+        <input id="ap-new-email" type="email" autocomplete="off" spellcheck="false" placeholder="Add a mailbox: name@domain.com" aria-label="Mailbox to add" class="mono" style="flex:1;min-width:220px;padding:6px 8px;">
+        <label class="hint" style="margin:0;display:flex;align-items:center;gap:4px;">per day <input type="number" id="ap-new-cap" value="5" min="1" max="50" style="width:60px;padding:6px 4px;" aria-label="Emails a weekday from the new mailbox"></label>
+        <input id="ap-new-name" placeholder="Display name (optional)" aria-label="Display name" style="width:200px;padding:6px 8px;">
+        <button type="button" id="ap-add" class="ap-btn">Add mailbox</button>
+      </div>
+      <div id="ap-add-msg" class="hint" style="margin:6px 0 0;white-space:pre-line;"></div>
+      <div class="hint" style="margin-top:2px;">A new mailbox starts paused. Press <b>Test connection</b> on its row, then <b>Activate</b>. Start new domains low (5 a day).</div>
     </div>
 
-    <div class="panel" style="margin-bottom:16px;">
-      <div class="display" style="font-size:22px;font-weight:700;margin-bottom:8px;">SETTINGS</div>
+    <div id="ap-details" style="display:none;">
+      <button type="button" id="ap-close-details" class="ap-link">← Cold autopilot</button>
+      <div class="display" style="font-size:26px;font-weight:700;margin:8px 0 2px;">Behind the scenes</div>
+      <div class="hint" style="margin:0 0 14px;">The switches and settings. Nothing sends until Sending is ON.</div>
+
+      <div class="ap-h" style="margin-top:6px;">Switches</div>
+      <div id="ap-switches" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px;"></div>
+      <div id="ap-facts" class="mono" style="font-size:12px;color:var(--mute);"></div>
+
+      <div class="ap-h">Signature and messages</div>
       <div class="grid" style="grid-template-columns:1fr 1fr;">
         <div>
           <label class="label" for="ap-sig">Signature (HTML)</label>
           <textarea id="ap-sig" rows="7" class="mono" style="width:100%;padding:8px;border:1px solid var(--ink);font-size:12px;"></textarea>
-          <button class="ap-save" data-key="cold_signature_html" data-src="ap-sig" style="margin-top:6px;padding:6px 14px;border:1px solid var(--ink);background:var(--ink);color:var(--paper);font-weight:600;">Save signature</button>
+          <button class="ap-save ap-btn" data-key="cold_signature_html" data-src="ap-sig" style="margin-top:6px;">Save signature</button>
           <div class="label" style="margin-top:10px;">Preview</div>
           <iframe id="ap-sig-prev" sandbox="" style="width:100%;height:120px;border:1px solid var(--rule);background:#fff;"></iframe>
         </div>
         <div>
-          <label class="label" for="ap-fu">Follow-up message (sent in the same thread; leave empty for none)</label>
+          <label class="label" for="ap-fu">Follow-up message (same thread; leave empty for none)</label>
           <textarea id="ap-fu" rows="5" class="mono" style="width:100%;padding:8px;border:1px solid var(--ink);font-size:12px;" placeholder="Hi {first_name}, ..."></textarea>
-          <div class="hint" style="margin-top:2px;">Tokens: {first_name} {company} {job_title} {a_an}. Your signature is added under it automatically.</div>
-          <button class="ap-save" data-key="cold_followup_body" data-src="ap-fu" style="margin-top:6px;padding:6px 14px;border:1px solid var(--ink);background:var(--ink);color:var(--paper);font-weight:600;">Save follow-up</button>
+          <div class="hint" style="margin-top:2px;">Tokens: {first_name} {company} {job_title} {a_an}. The signature is added underneath automatically.</div>
+          <button class="ap-save ap-btn" data-key="cold_followup_body" data-src="ap-fu" style="margin-top:6px;">Save follow-up</button>
           <label class="label" for="ap-fwd" style="margin-top:14px;">Forward positive replies to</label>
           <input id="ap-fwd" class="mono" placeholder="a@x.com,b@y.com">
-          <button class="ap-save" data-key="cold_reply_alert_to" data-src="ap-fwd" style="margin-top:6px;padding:6px 14px;border:1px solid var(--ink);background:var(--ink);color:var(--paper);font-weight:600;">Save addresses</button>
+          <button class="ap-save ap-btn" data-key="cold_reply_alert_to" data-src="ap-fwd" style="margin-top:6px;">Save addresses</button>
           <label style="display:flex;gap:8px;align-items:center;margin-top:14px;font-size:13px;"><input id="ap-unknown" type="checkbox" style="width:auto;"> Allow companies with no employee count on record (the 500-staff cap still applies to every company that has one)</label>
-          <button class="ap-save" data-key="cold_unknown_size_allowed" data-src="ap-unknown" style="margin-top:6px;padding:6px 14px;border:1px solid var(--ink);background:var(--ink);color:var(--paper);font-weight:600;">Save</button>
+          <button class="ap-save ap-btn" data-key="cold_unknown_size_allowed" data-src="ap-unknown" style="margin-top:6px;">Save</button>
         </div>
       </div>
       <div id="ap-settings-msg" style="margin-top:8px;font-size:13px;"></div>
+
+      <div class="ap-h">Why leads were set aside <span class="hint" style="margin:0;font-weight:400;text-transform:none;">last 7 days</span></div>
+      <div id="ap-skips" class="ap-wrap"></div>
+
+      <div class="ap-h">Weekly</div>
+      <div id="ap-weekly" class="ap-wrap"></div>
     </div>
 
-    <div class="grid" style="grid-template-columns:1fr 1fr;margin-bottom:16px;">
-      <div class="panel">
-        <div class="display" style="font-size:22px;font-weight:700;margin-bottom:8px;">RESPONSES <span class="mono" style="font-size:12px;color:var(--mute);font-weight:400;">click a row to read the thread</span></div>
-        <div id="ap-resp-counts" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;"></div>
-        <div id="ap-resp" class="mono" style="font-size:12px;max-height:460px;overflow:auto;"></div>
-      </div>
-      <div class="panel">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
-          <div class="display" style="font-size:22px;font-weight:700;">LIVE FEED</div>
-          <div class="mono" style="font-size:12px;"><a href="#" class="ap-feedtab" data-f="sent" id="ap-f-sent">Sent</a> &nbsp; <a href="#" class="ap-feedtab" data-f="inbox" id="ap-f-inbox">Inbox</a></div>
-        </div>
-        <div id="ap-feed" class="mono" style="font-size:12px;max-height:490px;overflow:auto;"></div>
-      </div>
-    </div>
-
-    <div class="panel" style="margin-bottom:16px;">
-      <div class="display" style="font-size:22px;font-weight:700;margin-bottom:8px;">LEADS</div>
-      <div id="ap-lead-counts" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;"></div>
-      <div id="ap-skips" class="mono" style="font-size:12px;color:var(--mute);margin-bottom:8px;"></div>
-      <div id="ap-leads" class="mono" style="font-size:12px;max-height:460px;overflow:auto;"></div>
-    </div>
-
-    <div class="panel">
-      <div class="display" style="font-size:22px;font-weight:700;margin-bottom:8px;">WEEKLY</div>
-      <div id="ap-weekly" class="mono" style="font-size:12px;"></div>
-    </div>
-
-    <div id="ap-modal" style="display:none;position:fixed;inset:0;background:rgba(22,35,46,.6);z-index:50;align-items:center;justify-content:center;padding:20px;">
-      <div class="panel" style="max-width:720px;width:100%;max-height:88vh;overflow:auto;">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;">
-          <div id="ap-modal-title" class="display" style="font-size:22px;font-weight:700;">THREAD</div>
+    <div id="ap-modal" style="display:none;position:fixed;inset:0;background:rgba(22,35,46,.6);z-index:50;align-items:flex-start;justify-content:center;padding:5vh 16px;">
+      <div class="panel" style="max-width:860px;width:100%;max-height:88vh;overflow:auto;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">
+          <div id="ap-modal-title" class="display" style="font-size:22px;font-weight:700;">Conversation</div>
           <a href="#" id="ap-modal-close" class="mono" style="font-size:13px;">close</a>
         </div>
-        <div id="ap-modal-body" style="font-size:13px;"></div>
+        <div id="ap-modal-body" style="font-size:14px;"></div>
       </div>
     </div>
   </div>
@@ -710,108 +758,163 @@ document.addEventListener("click", async (e) => {
   }
 });
 
-/* ===================== COLD AUTOPILOT TAB (10/21) ===================== */
-const AP = { data: null, feed: "sent", timer: null };
-const AP_KIND = { reply: "Reply", colleague_reply: "Colleague reply", opt_out: "Opt-out", bounce: "Bounce", left: "Left company", ooo: "Out of office", sender_blocked: "Mailbox blocked" };
+/* ===================== COLD AUTOPILOT TAB (laid out like the FCP Hub's Autopilot page) ===================== */
+let apData = null, apFeed = "sent", apFilter = "all", apLeadsF = "ready", apTimer = null, apBusy = false;
+const AP_SKIP = { not_microsoft: "Their email isn't on Microsoft", no_job_title: "Posting had no usable title", contact_touched_90d: "Emailed this person in the last 90 days",
+  company_touched_60d: "Emailed this company in the last 60 days", foreign_tld: "Not a US address", institutional_domain: "Government or school",
+  address_bounced: "Address bounced before", never_contact: "On the never-contact list", client: "Existing client", company_suppressed: "Company is suppressed",
+  cold_excluded: "Company is excluded", competitor: "A competitor", suppression_list: "On the suppression list", over_staff_cap: "500 or more employees",
+  size_unknown: "No employee count on record", posting_too_old: "Posting older than 30 days", posting_not_fresh: "Undated posting first seen over 14 days ago",
+  no_company_match: "Could not match the company", claim_expired: "Send did not finish", company_flag: "Company flagged since it was found" };
+const AP_KIND = { reply: ["REPLY", "emailed"], colleague_reply: ["COLLEAGUE", "emailed"], opt_out: ["OPT-OUT", "wont"], bounce: ["BOUNCE", "wont"], left: ["LEFT THE COMPANY", "wont"], ooo: ["OUT OF OFFICE", "looking"], sender_blocked: ["MAILBOX BLOCKED", "wont"] };
+
 function apErr(e) {
   let m = (e && e.message) || String(e);
   const x = m.match(/"message":"((?:[^"\\]|\\.)*)"/);
   if (x) { try { m = JSON.parse('"' + x[1] + '"'); } catch (_) { m = x[1]; } }
   return m;
 }
-function apWhen(iso) { return iso ? new Date(iso).toLocaleString("en-US", { timeZone: "America/Chicago", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "–"; }
-function apClock(iso) { return iso ? new Date(iso).toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit" }) : "–"; }
-function apChip(v, l, color) { return '<div class="chip"><b' + (color ? ' style="color:' + color + '"' : "") + ">" + fmt(v) + "</b><span>" + esc(l) + "</span></div>"; }
-function apOn(k) { return AP.data && AP.data.config && AP.data.config[k] === "true"; }
-function apBtn(txt, cls, attrs) { return '<button class="' + cls + '" ' + attrs + ' style="padding:4px 10px;border:1px solid var(--ink);background:var(--paper);font-size:12px;font-weight:600;margin-right:4px;">' + txt + "</button>"; }
+const apN = (v) => (Number(v) || 0).toLocaleString();
+const apWhen = (t) => t ? new Date(t).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+const apHhmm = (t) => new Date(t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+const apAddr = (e) => esc(e || "").replace("@", "<wbr>@");
+const apOwn = (s) => String(s || "").split(/\n?(From:|-----Original Message|On .{0,80} wrote:)/i)[0].trim();
 
 async function apLoad() {
+  if (apBusy) return; apBusy = true;
   try {
-    AP.data = await rpc("cold_autopilot_page", { p_passcode: passcode });
+    apData = await rpc("cold_autopilot_page", { p_passcode: passcode });
+    apData.at = new Date();
     $("ap-err").style.display = "none";
-    apRender();
-    $("ap-updated").textContent = "updated " + new Date().toLocaleTimeString();
+    apPaint();
   } catch (e) { $("ap-err").style.display = "block"; $("ap-err").textContent = "Could not load the autopilot: " + apErr(e); }
+  apBusy = false;
+  $("ap-refresh").disabled = false; $("ap-refresh").textContent = "Refresh";
 }
 
-function apRender() {
-  const d = AP.data, c = d.config || {};
-  // --- switches ---
-  const sw = (key, label) => {
-    const on = c[key] === "true";
-    return '<button class="ap-switch" data-key="' + key + '" data-on="' + (on ? "1" : "0") + '" style="padding:10px 16px;border:2px solid var(--ink);font-weight:700;font-size:14px;background:' + (on ? "var(--green)" : "var(--paper)") + ";color:" + (on ? "#fff" : "var(--ink)") + ';">' + esc(label) + ": " + (on ? "ON" : "OFF") + "</button>";
-  };
-  $("ap-switches").innerHTML = sw("cold_send_enabled", "Sending") + sw("cold_followups_enabled", "Follow-ups") + sw("cold_inbox_watch_enabled", "Reply watcher");
-  // --- banners ---
-  const warn = (t) => '<div style="border:1px solid var(--red);color:var(--red);padding:6px 10px;margin:4px 0;font-size:13px;">' + t + "</div>";
-  const note = (t) => '<div style="border:1px solid var(--rule);color:var(--mute);padding:6px 10px;margin:4px 0;font-size:13px;">' + t + "</div>";
-  const boxes = d.mailboxes || [], active = boxes.filter((m) => m.active);
+function apPaint() {
+  const d = apData; if (!d) return;
+  const c = d.config || {}, on = (k) => c[k] === "true";
+  const boxes = d.mailboxes || [], active = boxes.filter((m) => m.active), cap = active.reduce((a, m) => a + (m.daily_cap || 0), 0);
+  const s = d.sent || {}, rp = d.replies || {}, lc = d.lead_counts || {};
+  const pct = (a, b) => b ? (a / b * 100).toFixed(1) + "% of sent" : "";
+  const rate = s.total ? (d.bounced || 0) / s.total : 0;
+
+  $("ap-refreshed").textContent = "Last refreshed " + d.at.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
+  // status pill
+  const pill = $("ap-status"), sending = on("cold_send_enabled") && active.length;
+  pill.textContent = sending ? "Sending" : on("cold_send_enabled") ? "On, no active mailbox" : "Off";
+  pill.className = "ap-pill " + (sending ? "ok" : on("cold_send_enabled") ? "warn" : "off");
+  // banners
+  const warn = (t) => '<div class="ap-banner warn">' + t + "</div>";
   let b = "";
-  if (!c.cold_signature_html) b += warn("No signature set. Sending cannot be turned on until one is saved under Settings.");
-  if (!boxes.length) b += warn("No mailboxes yet. Add one below, press Test connection, then Activate.");
-  else if (!active.length) b += warn("No active mailboxes. Nothing will send.");
+  if (!c.cold_signature_html) b += warn("No signature is set, so sending cannot be turned on. Add it under <b>Behind the scenes</b>.");
   boxes.filter((m) => !m.active && m.connected_at && m.paused_reason && !/^connected:/.test(m.paused_reason)).forEach((m) => { b += warn("<b>" + esc(m.email) + "</b> is paused: " + esc(m.paused_reason)); });
-  if (apOn("cold_send_enabled") && !apOn("cold_inbox_watch_enabled")) b += warn("Sending is on but the reply watcher is off: replies would not be read or forwarded.");
-  if (apOn("cold_followups_enabled") && !(d.followup_body || "").trim()) b += note("Follow-ups are on but there is no follow-up message yet, so none will be sent.");
-  if (!apOn("cold_send_enabled")) b += note("Sending is OFF. Nothing goes out until you turn it on.");
+  if (on("cold_send_enabled") && !on("cold_inbox_watch_enabled")) b += warn("Sending is on but the reply watcher is off, so replies would not be read or forwarded. Turn it on under <b>Behind the scenes</b>.");
   $("ap-banners").innerHTML = b;
-  $("ap-facts").innerHTML = "Window Mon–Fri " + esc(c.cold_send_hour_start || 8) + "am–" + (parseInt(c.cold_send_hour_end || 18, 10) - 12) + "pm CT · follow-up after " + esc(c.cold_followup_after_days || 3) +
-    " days · replies forward to " + esc(c.cold_reply_alert_to || "(none)") + " · last inbox check " + (c.cold_inbox_watch_last_run ? apWhen(c.cold_inbox_watch_last_run) : "never") +
-    " · leads refreshed " + (c.cold_leads_last_refresh ? apWhen(c.cold_leads_last_refresh) : "never");
-  // --- totals ---
-  const s = d.sent || {}, r = d.replies || {}, lc = d.lead_counts || {};
-  const rate = s.total ? (100 * (d.bounced || 0) / s.total) : 0;
-  $("ap-totals").innerHTML = apChip(s.today, "sent today") + apChip(s.week, "sent this week") + apChip(s.total, "sent all time") + apChip(s.firsts, "first emails") + apChip(s.followups, "follow-ups") +
-    apChip(d.bounced, "bounced (" + rate.toFixed(1) + "%)", rate > 2 ? "var(--red)" : "") + apChip(d.failed_7d, "failed 7d", d.failed_7d ? "var(--red)" : "") + apChip(lc.ready, "leads ready");
-  // --- mailboxes ---
-  $("ap-mail-table").innerHTML = "<thead><tr><th>Mailbox</th><th>Status</th><th>Cap/day</th><th>Today</th><th>Week</th><th>Total</th><th>Bounced</th><th>Next send</th><th></th></tr></thead><tbody>" +
-    (boxes.length ? boxes.map((m) => {
-      const st = m.active ? '<b style="color:var(--green)">Active</b>' : (m.connected_at ? '<b style="color:var(--red)">Paused</b>' : '<b style="color:var(--mute)">Not connected</b>');
-      const why = !m.active && (m.paused_reason || m.last_error) ? '<div style="color:var(--mute);max-width:280px;">' + esc((m.last_error && !m.connected_at ? m.last_error : m.paused_reason) || "") + "</div>" : "";
-      const acts = apBtn("Test connection", "ap-test", 'data-email="' + esc(m.email) + '"') +
-        (m.active ? apBtn("Pause", "ap-toggle", 'data-email="' + esc(m.email) + '" data-active="0"') : apBtn("Activate", "ap-toggle", 'data-email="' + esc(m.email) + '" data-active="1"')) +
-        '<input class="ap-cap" data-email="' + esc(m.email) + '" type="number" min="1" max="50" value="' + esc(m.daily_cap) + '" style="width:58px;padding:3px 6px;font-size:12px;" title="daily cap, press Enter to save">';
-      return "<tr><td>" + esc(m.email) + (m.display_name ? '<div style="color:var(--mute)">' + esc(m.display_name) + "</div>" : "") + "</td><td>" + st + why + "</td><td>" + esc(m.daily_cap) + "</td><td>" + fmt(m.today) + "</td><td>" + fmt(m.week) + "</td><td>" + fmt(m.total) + "</td><td>" + fmt(m.bounced) + "</td><td>" + (m.next_slot ? apClock(m.next_slot) : "–") + "</td><td>" + acts + "</td></tr>";
-    }).join("") : '<tr><td colspan="9" style="color:var(--mute)">No mailboxes yet.</td></tr>') + "</tbody>";
-  // --- settings (do not overwrite what is being typed) ---
+  // summary line
+  $("ap-sub").innerHTML = (on("cold_send_enabled") ? "Sending from <b>" + apN(active.length) + "</b> " + (active.length === 1 ? "mailbox" : "mailboxes") + ", up to " + apN(cap) + " emails a weekday, follow-ups included."
+      : "<b>Sending is off.</b> Turn it on under Behind the scenes.")
+    + " <b>Lead supply:</b> " + apN(lc.ready) + " ready to send; " + apN(lc.made_today) + " found today, " + apN(lc.sent_today) + " sent, " + apN(lc.skipped_today) + " skipped."
+    + " Positive and neutral replies are forwarded to " + esc((c.cold_reply_alert_to || "").replace(/,\s*/g, ", ") || "nobody yet: set the addresses under Behind the scenes") + ".";
+  // tiles
+  const tile = (label, big, sub, color) => '<div class="ap-tile" style="border-top-color:' + color + '"><div class="l">' + esc(label) + '</div><div class="n">' + big + '</div><div class="d">' + sub + "</div></div>";
+  $("ap-tiles").innerHTML = [
+    tile("Emails sent", apN(s.total), apN(s.leads) + " people emailed", "var(--rule)"),
+    tile("Sent today", apN(s.today), "since midnight CT", "var(--ink)"),
+    tile("Sent this week", apN(s.week), "since Monday", "var(--ink)"),
+    tile("Bounced", apN(d.bounced), pct(d.bounced, s.total), rate > 0.05 ? "var(--red)" : "var(--amber)"),
+    tile("Replies", apN(rp.total), pct(rp.total, s.total), "var(--green)"),
+    tile("Positive or neutral", apN(rp.positive_neutral), apN(rp.forwarded) + " forwarded", "var(--green)"),
+    tile("Negative", apN(rp.negative), "not interested", "var(--red)"),
+    tile("Opted out", apN(rp.opted_out), "never emailed again", "var(--red)"),
+  ].join("");
+
+  // Responses
+  const AP_FILTERS = [["all", "All", () => true], ["pn", "Positive or neutral", (r) => r.sentiment === "positive_neutral"],
+    ["neg", "Negative", (r) => r.sentiment === "negative" && r.kind !== "opt_out"], ["opt", "Opted out", (r) => r.kind === "opt_out"], ["fwd", "Forwarded", (r) => !!r.alerted_at]];
+  const resp = d.responses || [];
+  $("ap-resp-filters").innerHTML = AP_FILTERS.map(([k, l, f]) => '<button type="button" class="ap-chip" data-apf="' + k + '" aria-pressed="' + (apFilter === k) + '">' + esc(l) + " · " + resp.filter(f).length + "</button>").join("");
+  $("ap-resp-sub").textContent = c.cold_inbox_watch_last_run ? "inboxes last checked " + apHhmm(c.cold_inbox_watch_last_run) : "";
+  const show = resp.filter((AP_FILTERS.find((x) => x[0] === apFilter) || AP_FILTERS[0])[2]);
+  const readAs = (r) => r.kind === "opt_out" ? '<span class="ap-state wont">OPTED OUT</span>' : r.sentiment === "positive_neutral" ? '<span class="ap-state emailed">POSITIVE / NEUTRAL</span>'
+    : r.sentiment === "negative" ? '<span class="ap-state you">NEGATIVE</span>' : '<span class="ap-state looking">–</span>';
+  const toTeam = (r) => r.alerted_at ? '<span class="ap-state emailed">Forwarded ' + esc(apWhen(r.alerted_at)) + "</span>"
+    : r.kind === "opt_out" || r.sentiment === "negative" ? '<span class="hint" style="margin:0">not forwarded: ' + (r.kind === "opt_out" ? "opted out" : "negative") + "</span>"
+    : '<button type="button" class="ap-btn" data-apfwd="' + esc(r.id) + '">Forward now</button>';
+  $("ap-resp").innerHTML = show.length ? show.map((r) => '<tr data-apthread="event:' + esc(r.id) + '" title="Open the conversation"><td class="ap-when">' + esc(apWhen(r.received_at)) + "</td>" +
+    "<td><b>" + esc(r.company || r.from_name || r.from_email || "") + '</b><div class="ap-why">' + esc(r.from_name ? r.from_name + " · " : "") + esc(r.from_email || "") + "</div></td>" +
+    '<td><div class="ap-clip"><b>' + esc(r.subject || "") + '</b></div><div class="ap-why ap-clip">' + esc(apOwn(r.snippet)) + "</div></td><td>" + readAs(r) + "</td><td>" + toTeam(r) + '</td><td class="ap-why">' + apAddr(r.mailbox) + "</td></tr>").join("")
+    : '<tr><td colspan="6" class="empty">' + (resp.length ? "No replies match this filter." : "No replies yet. Replies to the cold emails show up here.") + "</td></tr>";
+
+  // Live feed
+  const fs = d.feed_sent || [], fi = d.feed_inbox || [], fl = d.leads || [];
+  const LEAD_FILTERS = [["ready", "Ready to send", (r) => r.status === "ready"], ["sent", "Sent", (r) => r.status === "sent"], ["skipped", "Skipped", (r) => r.status === "skipped"], ["all", "All", () => true]];
+  $("ap-feed-tabs").innerHTML = [["sent", "Sent · " + apN(fs.length) + (fs.length >= 100 ? "+" : "")], ["inbox", "Inbox · " + apN(fi.length) + (fi.length >= 100 ? "+" : "")], ["leads", "Leads · " + apN(lc.ready) + " ready"]]
+    .map(([k, l]) => '<button type="button" class="ap-chip" data-apfeed="' + k + '" aria-pressed="' + (apFeed === k) + '">' + esc(l) + "</button>").join("")
+    + (apFeed === "leads" ? '<span class="hint" style="margin:0 2px 0 10px;align-self:center">Show</span>' + LEAD_FILTERS.map(([k, l, f]) =>
+        '<button type="button" class="ap-chip" data-apleads="' + k + '" aria-pressed="' + (apLeadsF === k) + '">' + esc(l) + " · " + apN(fl.filter(f).length) + "</button>").join("")
+      + '<span class="hint" style="margin:0 0 0 10px;align-self:center">Today: ' + apN(lc.made_today) + " found, " + apN(lc.sent_today) + " sent, " + apN(lc.skipped_today) + " skipped</span>" : "");
+  if (apFeed === "leads") {
+    const sh = fl.filter((LEAD_FILTERS.find((x) => x[0] === apLeadsF) || LEAD_FILTERS[0])[2]);
+    const age = (t) => { if (!t || t === "unknown") return "no posting date"; const h = (Date.now() - new Date(t + "T17:00:00Z").getTime()) / 3600e3; return h < 48 ? Math.max(1, Math.round(h)) + "h old" : Math.round(h / 24) + "d old"; };
+    const status = (r) => r.status === "ready" ? '<span class="ap-state next">READY</span><div class="ap-why">waiting for the next send</div>'
+      : r.status === "sent" ? '<span class="ap-state emailed">SENT</span><div class="ap-why">' + esc(apWhen(r.sent_at)) + (r.mailbox ? " · " + apAddr(r.mailbox) : "") + "</div>"
+      : r.status === "claimed" ? '<span class="ap-state looking">SENDING</span>'
+      : '<span class="ap-state wont">SKIPPED</span><div class="ap-why">' + esc(AP_SKIP[r.skip_reason] || r.skip_reason || "") + "</div>";
+    $("ap-feed-cols").innerHTML = '<col style="width:140px"><col style="width:20%"><col style="width:24%"><col><col style="width:18%">';
+    $("ap-feed-head").innerHTML = "<tr><th>Found</th><th>Company</th><th>Contact</th><th>Role</th><th>Status</th></tr>";
+    $("ap-feed").innerHTML = sh.length ? sh.map((r) => "<tr" + (r.touch_id ? ' data-apthread="touch:' + esc(r.touch_id) + '" title="Open the email"' : "") + '><td class="ap-when">' + esc(apWhen(r.created_at)) + "</td><td><b>" + esc(r.company || "") + "</b></td>" +
+      "<td>" + esc(r.poc_name || "") + '<div class="ap-why">' + esc(r.poc_title || "") + '</div><div class="ap-why">' + apAddr(r.email) + "</div></td>" +
+      "<td>" + (r.job_url ? '<a href="' + esc(r.job_url) + '" target="_blank" rel="noopener">' + esc(r.job_title || "posting") + "</a>" : esc(r.job_title || "")) + '<div class="ap-why">' + esc(age(r.posted_at)) + "</div></td><td>" + status(r) + "</td></tr>").join("")
+      : '<tr><td colspan="5" class="empty">' + (fl.length ? "No leads match this filter." : "No leads yet. They appear after a scan finishes.") + "</td></tr>";
+  } else if (apFeed === "sent") {
+    $("ap-feed-cols").innerHTML = '<col style="width:140px"><col style="width:22%"><col style="width:20%"><col><col style="width:90px"><col style="width:18%">';
+    $("ap-feed-head").innerHTML = "<tr><th>Sent</th><th>To</th><th>Company</th><th>Subject</th><th>#</th><th>From</th></tr>";
+    $("ap-feed").innerHTML = fs.length ? fs.map((r) => '<tr data-apthread="touch:' + esc(r.id) + '" title="Open the email"><td class="ap-when">' + esc(apWhen(r.sent_at)) + "</td><td>" + apAddr(r.email) + "</td><td><b>" + esc(r.company || "") + "</b></td>" +
+      '<td><div class="ap-clip" title="' + esc(r.subject || "") + '">' + esc(r.subject || "") + "</div></td><td>" + (r.step > 1 ? "follow-up" : "first") + '</td><td class="ap-why">' + apAddr(r.mailbox) + "</td></tr>").join("")
+      : '<tr><td colspan="6" class="empty">Nothing sent yet.</td></tr>';
+  } else {
+    $("ap-feed-cols").innerHTML = '<col style="width:140px"><col style="width:120px"><col style="width:20%"><col style="width:18%"><col><col style="width:18%">';
+    $("ap-feed-head").innerHTML = "<tr><th>Received</th><th>Type</th><th>From</th><th>Company</th><th>Subject / message</th><th>Mailbox</th></tr>";
+    $("ap-feed").innerHTML = fi.length ? fi.map((r) => { const k = AP_KIND[r.kind] || [String(r.kind || "").toUpperCase(), "looking"]; return '<tr data-apthread="event:' + esc(r.id) + '" title="Open the conversation"><td class="ap-when">' + esc(apWhen(r.received_at)) + '</td><td><span class="ap-state ' + k[1] + '">' + esc(k[0]) + "</span></td><td>" + apAddr(r.from_email) + "</td>" +
+      "<td><b>" + esc(r.company || "") + '</b></td><td><div class="ap-clip"><b>' + esc(r.subject || "") + '</b></div><div class="ap-why ap-clip">' + esc(apOwn(r.snippet)) + '</div></td><td class="ap-why">' + apAddr(r.mailbox) + "</td></tr>"; }).join("")
+      : '<tr><td colspan="6" class="empty">Nothing has come back yet: no replies, bounces or out-of-office notes.</td></tr>';
+  }
+
+  // By mailbox
+  $("ap-mb-sub").textContent = boxes.length ? apN(active.length) + " sending · " + apN(cap) + " emails a weekday" : "";
+  $("ap-mb").innerHTML = boxes.length ? boxes.map((m) => {
+    const note = m.active ? (m.next_slot ? "next send around " + esc(apHhmm(m.next_slot)) : "no more sends planned today")
+      : (m.connected_at ? "Paused · " + esc(m.paused_reason || "") : "Not connected yet · " + esc((m.last_error || m.paused_reason || "run Test connection").slice(0, 200)));
+    return "<tr><td><b>" + apAddr(m.email) + '</b><div class="ap-why">' + (m.display_name ? esc(m.display_name) + " · " : "") + note + '</div></td><td class="ap-num">' + apN(m.total) + '</td><td class="ap-num">' + apN(m.today) + "/" +
+      '<input class="ap-cap" data-email="' + esc(m.email) + '" type="number" min="1" max="50" value="' + esc(m.daily_cap) + '" title="Daily cap. Press Enter to save." style="width:46px;padding:2px 4px;font-size:12px;"></td><td class="ap-num">' + apN(m.week) + '</td><td class="ap-num">' + apN(m.bounced) + "</td>" +
+      '<td><button type="button" class="ap-btn ap-test" data-email="' + esc(m.email) + '">Test connection</button> <button type="button" class="ap-btn ap-toggle" data-email="' + esc(m.email) + '" data-active="' + (m.active ? "0" : "1") + '">' + (m.active ? "Pause" : "Activate") + "</button></td></tr>";
+  }).join("") : '<tr><td colspan="6" class="empty">No sending mailboxes yet. Add one below.</td></tr>';
+
+  // Behind the scenes
+  const sw = (key, label) => { const o = c[key] === "true"; return '<button type="button" class="ap-switch" data-key="' + key + '" data-on="' + (o ? "1" : "0") + '" style="padding:10px 16px;border:2px solid var(--ink);font-weight:700;font-size:14px;background:' + (o ? "var(--green)" : "var(--paper)") + ";color:" + (o ? "#fff" : "var(--ink)") + ';">' + esc(label) + ": " + (o ? "ON" : "OFF") + "</button>"; };
+  $("ap-switches").innerHTML = sw("cold_send_enabled", "Sending") + sw("cold_followups_enabled", "Follow-ups") + sw("cold_inbox_watch_enabled", "Reply watcher");
+  $("ap-facts").innerHTML = "Window Mon–Fri " + esc(c.cold_send_hour_start || 8) + "am–" + (parseInt(c.cold_send_hour_end || 18, 10) - 12) + "pm CT · follow-up after " + esc(c.cold_followup_after_days || 3) + " days · last inbox check " +
+    (c.cold_inbox_watch_last_run ? esc(apWhen(c.cold_inbox_watch_last_run)) : "never") + " · leads refreshed " + (c.cold_leads_last_refresh ? esc(apWhen(c.cold_leads_last_refresh)) : "never");
   const setIf = (id, v) => { const el = $(id); if (document.activeElement !== el) el.value = v; };
   setIf("ap-sig", d.signature_html || ""); setIf("ap-fu", d.followup_body || ""); setIf("ap-fwd", c.cold_reply_alert_to || "");
   if (document.activeElement !== $("ap-unknown")) $("ap-unknown").checked = c.cold_unknown_size_allowed === "true";
   if ($("ap-sig-prev").dataset.v !== (d.signature_html || "")) { $("ap-sig-prev").srcdoc = d.signature_html || ""; $("ap-sig-prev").dataset.v = d.signature_html || ""; }
-  // --- responses ---
-  $("ap-resp-counts").innerHTML = apChip(r.total, "replies") + apChip(r.positive_neutral, "positive / neutral", "var(--green)") + apChip(r.negative, "negative") + apChip(r.opted_out, "opted out") + apChip(r.forwarded, "forwarded");
-  const sentiment = (x) => x.kind === "opt_out" ? '<b style="color:var(--red)">Opt-out</b>' : x.sentiment === "positive_neutral" ? '<b style="color:var(--green)">Positive / neutral</b>' : x.sentiment === "negative" ? "Negative" : "";
-  $("ap-resp").innerHTML = (d.responses || []).length ? "<table><thead><tr><th>When (CT)</th><th>Company / contact</th><th>Read as</th><th>Forwarded</th></tr></thead><tbody>" + d.responses.map((x) =>
-    '<tr class="ap-row" data-kind="event" data-id="' + x.id + '" style="cursor:pointer;"><td>' + apWhen(x.received_at) + "</td><td><b>" + esc(x.company || x.from_email) + "</b> " + esc(x.job_title ? "· " + x.job_title : "") + '<div style="color:var(--mute)">' + esc(x.from_name || "") + " " + esc(x.from_email || "") + '</div><div style="color:var(--mute);max-width:340px;">' + esc((x.snippet || "").slice(0, 140)) + "</div></td><td>" + sentiment(x) +
-    "</td><td>" + (x.alerted_at ? "✓ " + apWhen(x.alerted_at) : (x.sentiment === "positive_neutral" ? '<button class="ap-fwdnow" data-id="' + x.id + '" style="padding:3px 8px;border:1px solid var(--ink);background:var(--amber);font-weight:600;font-size:12px;">Forward now</button>' : "–")) + "</td></tr>").join("") + "</tbody></table>" : '<div class="hint">No replies yet.</div>';
-  // --- feed ---
-  $("ap-f-sent").style.fontWeight = AP.feed === "sent" ? "700" : "400"; $("ap-f-inbox").style.fontWeight = AP.feed === "inbox" ? "700" : "400";
-  if (AP.feed === "sent") {
-    $("ap-feed").innerHTML = (d.feed_sent || []).length ? "<table><thead><tr><th>Sent (CT)</th><th>To</th><th>Mailbox</th><th></th></tr></thead><tbody>" + d.feed_sent.map((x) =>
-      '<tr class="ap-row" data-kind="touch" data-id="' + x.id + '" style="cursor:pointer;"><td>' + apWhen(x.sent_at) + "</td><td><b>" + esc(x.company || "") + "</b><div>" + esc(x.poc_name || "") + " " + esc(x.email) + '</div><div style="color:var(--mute)">' + esc(x.subject) + "</div></td><td>" + esc(x.mailbox) + "</td><td>" + (x.step > 1 ? "follow-up" : "first") + "</td></tr>").join("") + "</tbody></table>" : '<div class="hint">Nothing sent yet.</div>';
-  } else {
-    $("ap-feed").innerHTML = (d.feed_inbox || []).length ? "<table><thead><tr><th>When (CT)</th><th>What</th><th>Mailbox</th></tr></thead><tbody>" + d.feed_inbox.map((x) =>
-      '<tr class="ap-row" data-kind="event" data-id="' + x.id + '" style="cursor:pointer;"><td>' + apWhen(x.received_at) + "</td><td><b>" + esc(AP_KIND[x.kind] || x.kind) + "</b> " + esc(x.company || x.from_email || "") + '<div style="color:var(--mute);max-width:300px;">' + esc((x.snippet || "").slice(0, 120)) + "</div></td><td>" + esc(x.mailbox) + "</td></tr>").join("") + "</tbody></table>" : '<div class="hint">Nothing in the inbox yet.</div>';
-  }
-  // --- leads ---
-  $("ap-lead-counts").innerHTML = apChip(lc.ready, "ready", "var(--green)") + apChip(lc.made_today, "made today") + apChip(lc.sent_today, "sent today") + apChip(lc.skipped_today, "skipped today");
-  $("ap-skips").textContent = (d.skip_reasons || []).length ? "Skipped, last 7 days: " + d.skip_reasons.map((x) => x.reason + " " + x.n).join(" · ") : "";
-  const stat = (x) => x.status === "ready" ? '<b style="color:var(--green)">Ready</b>' : x.status === "sent" ? "Sent " + apWhen(x.sent_at) + (x.mailbox ? '<div style="color:var(--mute)">' + esc(x.mailbox) + "</div>" : "") : x.status === "claimed" ? "Sending…" : '<span style="color:var(--mute)">Skipped: ' + esc(x.skip_reason || "") + "</span>";
-  $("ap-leads").innerHTML = (d.leads || []).length ? "<table><thead><tr><th>Company</th><th>Role</th><th>Contact</th><th>Status</th></tr></thead><tbody>" + d.leads.map((x) =>
-    "<tr" + (x.touch_id ? ' class="ap-row" data-kind="touch" data-id="' + x.touch_id + '" style="cursor:pointer;"' : "") + "><td><b>" + esc(x.company) + "</b></td><td>" + (x.job_url ? '<a href="' + esc(x.job_url) + '" target="_blank" rel="noopener">' + esc(x.job_title) + "</a>" : esc(x.job_title)) + (x.posted_at && x.posted_at !== "unknown" ? '<div style="color:var(--mute)">posted ' + esc(x.posted_at) + "</div>" : "") + "</td><td>" + esc(x.poc_name || "") + '<div style="color:var(--mute)">' + esc(x.poc_title || "") + "</div><div>" + esc(x.email) + "</div></td><td>" + stat(x) + "</td></tr>").join("") + "</tbody></table>" : '<div class="hint">No leads yet. Leads appear after the next scan finishes.</div>';
-  // --- weekly ---
-  $("ap-weekly").innerHTML = (d.weekly || []).length ? "<table><thead><tr><th>Week of</th><th>First emails</th><th>Follow-ups</th><th>Replied</th><th>Reply rate</th><th>Failed</th></tr></thead><tbody>" + d.weekly.map((w) =>
-    "<tr><td>" + esc(w.week) + "</td><td>" + fmt(w.first_touches) + "</td><td>" + fmt(w.follow_ups) + "</td><td>" + fmt(w.replied_contacts) + "</td><td>" + (w.first_touches ? (100 * w.replied_contacts / w.first_touches).toFixed(1) + "%" : "–") + "</td><td>" + fmt(w.failed) + "</td></tr>").join("") + "</tbody></table>" : '<div class="hint">No sends yet.</div>';
+  $("ap-skips").innerHTML = (d.skip_reasons || []).length ? '<table class="ap-table"><tbody>' + d.skip_reasons.map((x) => "<tr><td>" + esc(AP_SKIP[x.reason] || x.reason || "") + '</td><td class="ap-num" style="width:80px">' + apN(x.n) + "</td></tr>").join("") + "</tbody></table>" : '<div class="hint">Nothing set aside yet.</div>';
+  $("ap-weekly").innerHTML = (d.weekly || []).length ? '<table class="ap-table"><thead><tr><th>Week of</th><th class="ap-num">First emails</th><th class="ap-num">Follow-ups</th><th class="ap-num">Replied</th><th class="ap-num">Reply rate</th><th class="ap-num">Failed</th></tr></thead><tbody>' + d.weekly.map((w) =>
+    "<tr><td>" + esc(w.week) + '</td><td class="ap-num">' + apN(w.first_touches) + '</td><td class="ap-num">' + apN(w.follow_ups) + '</td><td class="ap-num">' + apN(w.replied_contacts) + '</td><td class="ap-num">' + (w.first_touches ? (100 * w.replied_contacts / w.first_touches).toFixed(1) + "%" : "–") + '</td><td class="ap-num">' + apN(w.failed) + "</td></tr>").join("") + "</tbody></table>" : '<div class="hint">No sends yet.</div>';
 }
 
 async function apThread(kind, id) {
-  $("ap-modal").style.display = "flex"; $("ap-modal-title").textContent = "THREAD";
+  $("ap-modal").style.display = "flex"; $("ap-modal-title").textContent = "Conversation";
   $("ap-modal-body").innerHTML = '<div class="hint">Loading the conversation from the mailbox…</div>';
   try {
     const t = await rpc("cold_thread", { p_passcode: passcode, p_kind: kind, p_id: id });
-    $("ap-modal-title").textContent = "THREAD · " + t.mailbox;
+    $("ap-modal-title").textContent = "Conversation · " + t.mailbox;
     $("ap-modal-body").innerHTML = (t.messages || []).length ? t.messages.map((m) =>
-      '<div style="border:1px solid var(--rule);border-left:4px solid ' + (m.ours ? "var(--amber)" : "var(--ink)") + ';padding:8px 10px;margin-bottom:8px;"><div class="mono" style="font-size:12px;color:var(--mute);">' + (m.ours ? "We sent" : "They wrote") + " · " + esc((m.from && (m.from.name || m.from.address)) || "") + " · " + apWhen(m.date) + '</div><div style="white-space:pre-wrap;margin-top:6px;">' + esc(m.text) + "</div></div>").join("") : '<div class="hint">The message could not be found in the mailbox.</div>';
+      '<div class="ap-msg' + (m.ours ? " ours" : "") + '"><div class="ap-msg-meta"><b>' + (m.ours ? "We sent" : "They wrote") + "</b> " + esc((m.from && (m.from.name || m.from.address)) || "") + " · " + esc(apWhen(m.date)) + "</div>" +
+      (m.subject ? '<div class="ap-msg-sub">' + esc(m.subject) + "</div>" : "") + '<div class="ap-msg-text">' + esc(m.text) + "</div></div>").join("") : '<div class="hint">The message could not be found in the mailbox.</div>';
   } catch (e) { $("ap-modal-body").innerHTML = '<div class="err">' + esc(apErr(e)) + "</div>"; }
 }
 
@@ -819,17 +922,26 @@ function apTabs(which) {
   $("view-scan").style.display = which === "scan" ? "block" : "none";
   $("view-auto").style.display = which === "auto" ? "block" : "none";
   $("tab-scan").classList.toggle("on", which === "scan"); $("tab-auto").classList.toggle("on", which === "auto");
-  if (AP.timer) { clearInterval(AP.timer); AP.timer = null; }
-  if (which === "auto") { apLoad(); AP.timer = setInterval(apLoad, 30000); }
+  if (apTimer) { clearInterval(apTimer); apTimer = null; }
+  if (which === "auto") { apLoad(); apTimer = setInterval(() => { if (!document.hidden) apLoad(); }, 60000); }
 }
 
 document.addEventListener("click", async (e) => {
   const t = e.target; if (!t || !t.closest) return;
   if (t.id === "tab-scan") { apTabs("scan"); return; }
   if (t.id === "tab-auto") { apTabs("auto"); return; }
-  if (t.id === "ap-refresh") { e.preventDefault(); apLoad(); return; }
+  if (t.id === "ap-refresh") { t.disabled = true; t.textContent = "Refreshing…"; apLoad(); return; }
+  if (t.id === "ap-open-details") { $("ap-main").style.display = "none"; $("ap-details").style.display = "block"; window.scrollTo(0, 0); return; }
+  if (t.id === "ap-close-details") { $("ap-details").style.display = "none"; $("ap-main").style.display = "block"; return; }
   if (t.id === "ap-modal-close" || t.id === "ap-modal") { e.preventDefault(); $("ap-modal").style.display = "none"; return; }
-  const fe = t.closest(".ap-feedtab"); if (fe) { e.preventDefault(); AP.feed = fe.dataset.f; apRender(); return; }
+  const f = t.closest("[data-apf]"); if (f) { apFilter = f.dataset.apf; apPaint(); return; }
+  const ft = t.closest("[data-apfeed]"); if (ft) { apFeed = ft.dataset.apfeed; apPaint(); return; }
+  const fl = t.closest("[data-apleads]"); if (fl) { apLeadsF = fl.dataset.apleads; apPaint(); return; }
+  if (t.id === "ap-inbox-check") {
+    t.disabled = true; $("ap-inbox-msg").textContent = "Reading the mailboxes…";
+    try { const r = await rpc("cold_check_inbox", { p_passcode: passcode }); $("ap-inbox-msg").textContent = r && r.skipped ? "Not run: " + r.skipped + " (turn the Reply watcher on under Behind the scenes)" : "Done."; await apLoad(); } catch (er) { $("ap-inbox-msg").textContent = apErr(er); }
+    t.disabled = false; return;
+  }
   const sw = t.closest(".ap-switch");
   if (sw) {
     const turningOn = sw.dataset.on !== "1", key = sw.dataset.key;
@@ -842,23 +954,20 @@ document.addEventListener("click", async (e) => {
     const old = test.textContent; test.textContent = "Testing…"; test.disabled = true;
     try {
       const r = await rpc("cold_test_mailbox", { p_passcode: passcode, p_email: test.dataset.email });
-      let html = '<div style="padding:8px 10px;border:1px solid ' + (r.ok ? "var(--green)" : "var(--red)") + ";color:" + (r.ok ? "var(--green)" : "var(--red)") + ';">' + esc(test.dataset.email) + ": " + esc(r.message) + "</div>";
-      if (!r.ok && r.consent_url) html += '<div class="hint">Consent link for that account’s Global Admin (open once, then Test again):<br><input readonly value="' + esc(r.consent_url) + '" class="mono" style="font-size:11px;" onclick="this.select()"></div>';
+      let html = '<div style="color:' + (r.ok ? "var(--green)" : "var(--red)") + ';"><b>' + esc(test.dataset.email) + ":</b> " + esc(r.message) + "</div>";
+      if (!r.ok && r.consent_url) html += '<div style="margin-top:4px;">Consent link for that account’s Global Admin (open once, then Test again):<br><input readonly value="' + esc(r.consent_url) + '" class="mono" style="font-size:11px;" onclick="this.select()"></div>';
       $("ap-add-msg").innerHTML = html; await apLoad();
-    } catch (er) { $("ap-add-msg").innerHTML = '<div class="err">' + esc(apErr(er)) + "</div>"; }
+    } catch (er) { $("ap-add-msg").innerHTML = '<span class="err">' + esc(apErr(er)) + "</span>"; }
     test.textContent = old; test.disabled = false; return;
   }
   const tg = t.closest(".ap-toggle");
-  if (tg) {
-    try { await rpc("cold_set_mailbox", { p_passcode: passcode, p_email: tg.dataset.email, p_active: tg.dataset.active === "1" }); await apLoad(); } catch (er) { alert(apErr(er)); }
-    return;
-  }
+  if (tg) { try { await rpc("cold_set_mailbox", { p_passcode: passcode, p_email: tg.dataset.email, p_active: tg.dataset.active === "1" }); await apLoad(); } catch (er) { alert(apErr(er)); } return; }
   if (t.id === "ap-add") {
     try {
       await rpc("cold_add_mailbox", { p_passcode: passcode, p_email: $("ap-new-email").value, p_cap: parseInt($("ap-new-cap").value, 10) || 5, p_display: $("ap-new-name").value });
-      $("ap-add-msg").innerHTML = '<div style="color:var(--green)">Added ' + esc($("ap-new-email").value) + ". Now press Test connection on its row.</div>";
+      $("ap-add-msg").innerHTML = '<span style="color:var(--green)">Added ' + esc($("ap-new-email").value) + ". Now press Test connection on its row.</span>";
       $("ap-new-email").value = ""; $("ap-new-name").value = ""; await apLoad();
-    } catch (er) { $("ap-add-msg").innerHTML = '<div class="err">' + esc(apErr(er)) + "</div>"; }
+    } catch (er) { $("ap-add-msg").innerHTML = '<span class="err">' + esc(apErr(er)) + "</span>"; }
     return;
   }
   const sv = t.closest(".ap-save");
@@ -868,16 +977,18 @@ document.addEventListener("click", async (e) => {
     catch (er) { $("ap-settings-msg").innerHTML = '<span class="err">' + esc(apErr(er)) + "</span>"; }
     return;
   }
-  const fw = t.closest(".ap-fwdnow");
+  const fw = t.closest("[data-apfwd]");
   if (fw) {
-    e.stopPropagation(); fw.textContent = "Sending…"; fw.disabled = true;
-    try { await rpc("cold_forward", { p_passcode: passcode, p_id: parseInt(fw.dataset.id, 10) }); await apLoad(); } catch (er) { alert(apErr(er)); fw.textContent = "Forward now"; fw.disabled = false; }
+    fw.disabled = true; fw.textContent = "Forwarding…";
+    try { await rpc("cold_forward", { p_passcode: passcode, p_id: parseInt(fw.dataset.apfwd, 10) }); await apLoad(); } catch (er) { alert("Could not forward: " + apErr(er)); fw.disabled = false; fw.textContent = "Forward now"; }
     return;
   }
-  const row = t.closest(".ap-row");
-  if (row && !t.closest("a") && !t.closest("button")) { apThread(row.dataset.kind, parseInt(row.dataset.id, 10)); }
+  // a Responses / Live feed row opens its conversation; buttons and links inside keep doing their own thing
+  const tr = t.closest("tr[data-apthread]");
+  if (tr && !t.closest("button, a, input")) { const [kind, rid] = tr.dataset.apthread.split(":"); apThread(kind, parseInt(rid, 10)); }
 });
 document.addEventListener("keydown", async (e) => {
+  if (e.key === "Escape" && $("ap-modal").style.display === "flex") $("ap-modal").style.display = "none";
   if (e.key === "Enter" && e.target && e.target.classList && e.target.classList.contains("ap-cap")) {
     try { await rpc("cold_set_mailbox", { p_passcode: passcode, p_email: e.target.dataset.email, p_cap: parseInt(e.target.value, 10) }); await apLoad(); } catch (er) { alert(apErr(er)); }
   }
