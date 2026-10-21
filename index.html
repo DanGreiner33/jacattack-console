@@ -360,6 +360,21 @@
       <div id="ap-weekly" class="ap-wrap"></div>
     </div>
 
+    <div id="ap-test-modal" style="display:none;position:fixed;inset:0;background:rgba(22,35,46,.6);z-index:60;align-items:flex-start;justify-content:center;padding:8vh 16px;">
+      <div class="panel" style="max-width:520px;width:100%;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+          <div class="display" style="font-size:22px;font-weight:700;">Send a test email</div>
+          <a href="#" id="ap-test-close" class="mono" style="font-size:13px;">close</a>
+        </div>
+        <div class="hint" style="margin:0 0 10px;">Sends the real message, through the real send path, from <b id="ap-test-from"></b> to an address you choose. It is not tied to any lead. The subject starts with TEST. Follow-up tests reply in the same thread as the first-email test to the same address, so send the first email first.</div>
+        <label class="label" for="ap-test-to">Send the test to</label>
+        <input id="ap-test-to" type="email" class="mono" placeholder="you@yourcompany.com">
+        <label class="label" for="ap-test-which" style="margin-top:10px;">Which message</label>
+        <select id="ap-test-which"><option value="first">First email</option><option value="fu1">Follow-up 1 (reply in the same thread)</option><option value="fu2">Follow-up 2 (reply in the same thread)</option></select>
+        <button type="button" id="ap-test-go" class="btn-primary" style="margin-top:14px;font-size:15px;padding:10px;">Send test</button>
+        <div id="ap-test-msg" style="margin-top:10px;font-size:13px;"></div>
+      </div>
+    </div>
     <div id="ap-modal" style="display:none;position:fixed;inset:0;background:rgba(22,35,46,.6);z-index:50;align-items:flex-start;justify-content:center;padding:5vh 16px;">
       <div class="panel" style="max-width:860px;width:100%;max-height:88vh;overflow:auto;">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">
@@ -914,7 +929,7 @@ function apPaint() {
       : (m.connected_at ? "Paused · " + esc(m.paused_reason || "") : "Not connected yet · " + esc((m.last_error || m.paused_reason || "run Test connection").slice(0, 200)));
     return "<tr><td><b>" + apAddr(m.email) + '</b><div class="ap-why">' + (m.display_name ? esc(m.display_name) + " · " : "") + note + '</div></td><td class="ap-num">' + apN(m.total) + '</td><td class="ap-num">' + apN(m.today) + "/" +
       '<input class="ap-cap" data-email="' + esc(m.email) + '" type="number" min="1" max="50" value="' + esc(m.daily_cap) + '" title="Daily cap. Press Enter to save." style="width:46px;padding:2px 4px;font-size:12px;"></td><td class="ap-num">' + apN(m.week) + '</td><td class="ap-num">' + apN(m.bounced) + "</td>" +
-      '<td><button type="button" class="ap-btn ap-test" data-email="' + esc(m.email) + '">Test connection</button> <button type="button" class="ap-btn ap-toggle" data-email="' + esc(m.email) + '" data-active="' + (m.active ? "0" : "1") + '">' + (m.active ? "Pause" : "Activate") + "</button></td></tr>";
+      '<td><button type="button" class="ap-btn ap-test" data-email="' + esc(m.email) + '">Test connection</button> ' + (m.connected_at ? '<button type="button" class="ap-btn ap-testsend" data-email="' + esc(m.email) + '">Send test email</button> ' : "") + '<button type="button" class="ap-btn ap-toggle" data-email="' + esc(m.email) + '" data-active="' + (m.active ? "0" : "1") + '">' + (m.active ? "Pause" : "Activate") + "</button></td></tr>";
   }).join("") : '<tr><td colspan="6" class="empty">No sending mailboxes yet. Add one below.</td></tr>';
 
   // Behind the scenes
@@ -988,6 +1003,23 @@ document.addEventListener("click", async (e) => {
       $("ap-add-msg").innerHTML = html; await apLoad();
     } catch (er) { $("ap-add-msg").innerHTML = '<span class="err">' + esc(apErr(er)) + "</span>"; }
     test.textContent = old; test.disabled = false; return;
+  }
+  const ts = t.closest(".ap-testsend");
+  if (ts) {
+    $("ap-test-from").textContent = ts.dataset.email; $("ap-test-msg").textContent = "";
+    try { $("ap-test-to").value = localStorage.getItem("ap_test_to") || ""; } catch (_) {}
+    $("ap-test-modal").style.display = "flex"; $("ap-test-to").focus(); return;
+  }
+  if (t.id === "ap-test-close" || t.id === "ap-test-modal") { e.preventDefault(); $("ap-test-modal").style.display = "none"; return; }
+  if (t.id === "ap-test-go") {
+    const to = $("ap-test-to").value.trim();
+    t.disabled = true; $("ap-test-msg").innerHTML = '<span class="hint">Sending…</span>';
+    try {
+      try { localStorage.setItem("ap_test_to", to); } catch (_) {}
+      const r = await rpc("cold_test_send", { p_passcode: passcode, p_mailbox: $("ap-test-from").textContent, p_to: to, p_which: $("ap-test-which").value });
+      $("ap-test-msg").innerHTML = '<span style="color:' + (r.ok ? "var(--green)" : "var(--red)") + ';">' + esc(r.message) + "</span>";
+    } catch (er) { $("ap-test-msg").innerHTML = '<span class="err">' + esc(apErr(er)) + "</span>"; }
+    t.disabled = false; return;
   }
   const tg = t.closest(".ap-toggle");
   if (tg) { try { await rpc("cold_set_mailbox", { p_passcode: passcode, p_email: tg.dataset.email, p_active: tg.dataset.active === "1" }); await apLoad(); } catch (er) { alert(apErr(er)); } return; }
