@@ -543,6 +543,17 @@ async function loadClients() {
   } catch (e) { /* non-critical */ }
 }
 
+// Before a manual run: has the autopilot already scanned (or booked) an overlapping vertical that day? Asks instead of silently doubling up.
+async function okToRunDespiteAutopilot(vertical, at) {
+  let rows = [];
+  try { rows = await rpc("scan_overlap_today", { p_passcode: passcode, p_vertical: vertical || null, p_at: (at || new Date()).toISOString() }) || []; }
+  catch (e) { return true; }  /* the check is advisory: if it fails, do not block the run */
+  if (!rows.length) return true;
+  const NL = String.fromCharCode(10);
+  const lines = rows.map((r) => "- " + r.vertical + " at " + r.at_ct + (r.status === "pending" ? " (booked, not run yet)" : " (already run)") + ", " + r.target + " leads");
+  return confirm("The autopilot already covers " + (vertical || "all verticals") + " that day:" + NL + lines.join(NL) + NL + NL + "Running it again repeats the same companies. Run anyway?");
+}
+
 let recentShowAll = false;
 async function loadRecent() {
   try {
@@ -551,6 +562,8 @@ async function loadRecent() {
       '<div style="display:flex;gap:12px;padding:5px 0;border-bottom:1px solid var(--rule);align-items:baseline;">' +
       '<a href="#" data-view="' + b.id + '" data-target="' + (b.target_hits ?? 0) + '" style="font-weight:600;">#' + b.id + '</a>' +
       '<span style="color:var(--mute);">' + new Date(b.created_at).toLocaleString([], {month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}) + '</span>' +
+      '<span title="' + (b.source === "autopilot" ? "Booked by the cold autopilot schedule" : "Started by hand from this console") + '" style="font-weight:600;color:' + (b.source === "autopilot" ? "var(--green)" : "var(--mute)") + ';">' + (b.source === "autopilot" ? "Autopilot" : "Manual") + '</span>' +
+      '<span style="color:var(--mute);">' + (b.vertical_filter || "all") + '</span>' +
       '<span style="color:var(--green);font-weight:600;">' + b.hits + '/' + (b.target_hits ?? "?") + ' leads</span>' +
       '<span>' + b.checked + ' checked</span>' +
       '<span style="color:var(--mute);">' + b.status + '</span></div>'
@@ -603,6 +616,7 @@ $("sched-btn").onclick = async () => {
   try {
     const t = $("sched-time").value;
     if (!t) throw new Error("Pick a date and time first.");
+    if (!(await okToRunDespiteAutopilot($("sched-vertical").value || null, new Date(t)))) return;
     await rpc("create_schedule", {
       p_passcode: passcode,
       p_run_at: new Date(t).toISOString(),
@@ -695,6 +709,7 @@ $("export").onclick = () => {
 };
 $("start").onclick = async () => {
   if (running) { stopFlag = true; $("start").textContent = "Stopping…"; return; }
+  if (!(await okToRunDespiteAutopilot($("vertical").value || null))) return;
   const count = Math.max(1, Math.min(10000, Number($("count").value) || 0));
   running = true; stopFlag = false; hits = []; renderHits();
   $("scan-err").style.display = "none";
@@ -1175,6 +1190,6 @@ document.addEventListener("click", async (e) => {
   }
 });
 </script>
-<div style="position:fixed;right:8px;bottom:6px;font-size:11px;opacity:.45;pointer-events:none" class="mono">v1.1.0</div>
+<div style="position:fixed;right:8px;bottom:6px;font-size:11px;opacity:.45;pointer-events:none" class="mono">v1.2.0</div>
 </body>
 </html>
