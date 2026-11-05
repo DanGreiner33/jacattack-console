@@ -633,6 +633,7 @@ $("login").onclick = async () => {
     setInterval(refreshStats, 60000);
     setInterval(loadRecent, 60000);
     setInterval(loadSchedules, 60000);
+    apHashThread();
   } catch (e) {
     $("gate-err").style.display = "block";
     $("gate-err").textContent = e.message === "unauthorized"
@@ -989,6 +990,15 @@ async function apThread(kind, id) {
   } catch (e) { $("ap-modal-body").innerHTML = '<div class="err">' + esc(apErr(e)) + "</div>"; }
 }
 
+// Deep link from autopilots.fclabz.com (10/28): #thread=event:<inbox_events.id> or #thread=touch:<contact_touches.id> opens that conversation
+// on the Autopilot tab right after sign-in (the passcode is never in the link; each new tab asks for it).
+function apHashThread() {
+  const m = /^#thread=(event|touch):(\d+)$/.exec(location.hash || "");
+  if (!m || $("app").style.display !== "block") return;
+  apTabs("auto"); apThread(m[1], parseInt(m[2], 10));
+}
+window.addEventListener("hashchange", apHashThread);
+
 function apTabs(which) {
   $("view-scan").style.display = which === "scan" ? "block" : "none";
   $("view-auto").style.display = which === "auto" ? "block" : "none";
@@ -1165,5 +1175,6 @@ document.addEventListener("click", async (e) => {
   }
 });
 </script>
+<div style="position:fixed;right:8px;bottom:6px;font-size:11px;opacity:.45;pointer-events:none" class="mono">v1.1.0</div>
 </body>
 </html>
