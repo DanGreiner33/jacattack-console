@@ -667,6 +667,10 @@ $("login").onclick = async () => {
     setInterval(refreshStats, 60000);
     setInterval(loadRecent, 60000);
     setInterval(loadSchedules, 60000);
+    // Q05: reopen on the tab this browser used last (a #thread link still wins, it opens Autopilot itself)
+    let lastTab = null;
+    try { lastTab = localStorage.getItem("jac_last_tab"); } catch (_) {}
+    if (lastTab === "auto" && !/^#thread=/.test(location.hash || "")) apTabs("auto");
     apHashThread();
   } catch (e) {
     if (EMBED) {   // no passcode to type here: say what went wrong and offer a retry
@@ -1058,6 +1062,7 @@ function apTabs(which) {
   $("view-scan").style.display = which === "scan" ? "block" : "none";
   $("view-auto").style.display = which === "auto" ? "block" : "none";
   $("tab-scan").classList.toggle("on", which === "scan"); $("tab-auto").classList.toggle("on", which === "auto");
+  try { localStorage.setItem("jac_last_tab", which); } catch (_) { /* Q05: remembering the tab is a convenience only */ }
   if (apTimer) { clearInterval(apTimer); apTimer = null; }
   if (which === "auto") { apLoad(); apTimer = setInterval(() => { if (!document.hidden) apLoad(); }, 60000); }
 }
