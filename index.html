@@ -909,7 +909,29 @@ document.addEventListener("click", async (e) => {
 });
 
 /* ===================== COLD AUTOPILOT TAB (laid out like the FCP Hub's Autopilot page) ===================== */
-let apMbFilter = "all", apData = null, apFeed = "sent", apFilter = "all", apLeadsF = "ready", apTimer = null, apBusy = false;
+// v1.3.4 (Luke 11/11, Responses parity with Operations and the FCP Hub): the one Responses definition, verbatim from
+// lib/responses.js in Claude-LS projects/autopilots-tracker and FCP-Internal-Lead-Gen. Used once cold_autopilot_page sends
+// responses_window_days (sql/2026-11-11-responses-parity.sql); before that the page works as it did.
+// RESP:start
+const RESP_WINDOW_DAYS = 30;
+const RESP_KINDS = ["reply", "colleague_reply", "opt_out", "ooo", "bounce", "left"];
+const RESP_LABEL = { reply: "Reply", colleague_reply: "Reply from a colleague", opt_out: "Asked not to be contacted", ooo: "Out of office", bounce: "Bounced", left: "Left company" };
+const respIsReply = (k) => k === "reply" || k === "colleague_reply";
+const RESP_CHIPS = [
+  ["all", "All", (k) => RESP_KINDS.includes(k)],
+  ["replies", "Replies", (k) => respIsReply(k) || k === "opt_out"],
+  ["pn", "Positive or neutral", (k, s) => respIsReply(k) && s === "positive_neutral"],
+  ["neg", "Negative", (k, s) => respIsReply(k) && s === "negative"],
+  ["opt", "Opted out", (k) => k === "opt_out"],
+  ["ooo", "Out of office", (k) => k === "ooo"],
+  ["bounce", "Bounces", (k) => k === "bounce" || k === "left"],
+];
+const RESP_DEFAULT = "replies";
+// FCLabz-BD words (messages.kind reply/auto/bounce/unsubscribe, sentiment positive/neutral/negative) in the Hub vocabulary
+const RESP_BD_KIND = { reply: "reply", auto: "ooo", bounce: "bounce", unsubscribe: "opt_out", ooo: "ooo", opt_out: "opt_out" };
+const respFromBd = (kind, sentiment) => [RESP_BD_KIND[kind] || kind, sentiment === "positive" || sentiment === "neutral" ? "positive_neutral" : sentiment || null];
+// RESP:end
+let apMbFilter = "all", apData = null, apFeed = "sent", apFilter = RESP_DEFAULT, apLeadsF = "ready", apTimer = null, apBusy = false;
 const AP_SKIP = { not_microsoft: "Their email isn't on Microsoft", no_job_title: "Posting had no usable title", contact_touched_90d: "Emailed this person in the last 90 days",
   company_touched_60d: "Emailed this company in the last 60 days", foreign_tld: "Not a US address", institutional_domain: "Government or school",
   address_bounced: "Address bounced before", never_contact: "On the never-contact list", client: "Existing client", company_suppressed: "Company is suppressed",
@@ -972,6 +994,8 @@ function apPaint() {
       : "<b>Sending is off.</b> Turn it on under Behind the scenes.")
     + " <b>Lead supply:</b> " + apN(lc.ready) + " ready to send; " + apN(lc.made_today) + " found today, " + apN(lc.sent_today) + " sent, " + apN(lc.skipped_today) + " skipped."
     + " Positive and neutral replies are forwarded to " + esc((c.cold_reply_alert_to || "").replace(/,\s*/g, ", ") || "nobody yet: set the addresses under Behind the scenes") + ".";
+  // v1.3.4: the parity function sends responses_window_days; then chips and reply tiles share RESP_CHIPS
+  const rc = d.responses_window_days ? Object.fromEntries(RESP_CHIPS.map(([k, , f]) => [k, (d.responses || []).filter((r) => f(r.kind, r.sentiment)).length])) : null;
   // tiles
   const tile = (label, big, sub, color) => '<div class="ap-tile" style="border-top-color:' + color + '"><div class="l">' + esc(label) + '</div><div class="n">' + big + '</div><div class="d">' + sub + "</div></div>";
   $("ap-tiles").innerHTML = [
@@ -979,28 +1003,33 @@ function apPaint() {
     tile("Sent today", apN(s.today), "since midnight CT", "var(--ink)"),
     tile("Sent this week", apN(s.week), "since Monday", "var(--ink)"),
     tile("Bounced", apN(d.bounced), pct(d.bounced, s.total), rate > 0.05 ? "var(--red)" : "var(--amber)"),
-    tile("Replies", apN(rp.total), pct(rp.total, s.total), "var(--green)"),
-    tile("Positive or neutral", apN(rp.positive_neutral), apN(rp.forwarded) + " forwarded", "var(--green)"),
-    tile("Negative", apN(rp.negative), "not interested", "var(--red)"),
-    tile("Opted out", apN(rp.opted_out), "never emailed again", "var(--red)"),
+    // v1.3.4: with the parity function the reply tiles count the Responses rows (last 30 days), so each tile equals its chip
+    tile("Replies", apN(rc ? rc.replies : rp.total), rc ? "last " + d.responses_window_days + " days" : pct(rp.total, s.total), "var(--green)"),
+    tile("Positive or neutral", apN(rc ? rc.pn : rp.positive_neutral), apN(rc ? (d.responses || []).filter((r) => respIsReply(r.kind) && r.sentiment === "positive_neutral" && r.alerted_at).length : rp.forwarded) + " forwarded", "var(--green)"),
+    tile("Negative", apN(rc ? rc.neg : rp.negative), "not interested", "var(--red)"),
+    tile("Opted out", apN(rc ? rc.opt : rp.opted_out), "never emailed again", "var(--red)"),
   ].join("");
 
   // Responses
-  const AP_FILTERS = [["all", "All", () => true], ["pn", "Positive or neutral", (r) => r.sentiment === "positive_neutral"],
+  const AP_FILTERS = rc ? RESP_CHIPS.map(([k, l, f]) => [k, l, (r) => f(r.kind, r.sentiment)]).concat([["fwd", "Forwarded", (r) => !!r.alerted_at]])
+    : [["all", "All", () => true], ["pn", "Positive or neutral", (r) => r.sentiment === "positive_neutral"],
     ["neg", "Negative", (r) => r.sentiment === "negative" && r.kind !== "opt_out"], ["opt", "Opted out", (r) => r.kind === "opt_out"], ["fwd", "Forwarded", (r) => !!r.alerted_at]];
+  if (!AP_FILTERS.some((x) => x[0] === apFilter)) apFilter = AP_FILTERS[0][0];   // the old function has no Replies chip
   const resp = d.responses || [];
   $("ap-resp-filters").innerHTML = AP_FILTERS.map(([k, l, f]) => '<button type="button" class="ap-chip" data-apf="' + k + '" aria-pressed="' + (apFilter === k) + '">' + esc(l) + " · " + resp.filter(f).length + "</button>").join("");
-  $("ap-resp-sub").textContent = c.cold_inbox_watch_last_run ? "inboxes last checked " + apHhmm(c.cold_inbox_watch_last_run) : "";
+  $("ap-resp-sub").textContent = (rc ? "last " + d.responses_window_days + " days" + (c.cold_inbox_watch_last_run ? " · " : "") : "") + (c.cold_inbox_watch_last_run ? "inboxes last checked " + apHhmm(c.cold_inbox_watch_last_run) : "");
   const show = resp.filter((AP_FILTERS.find((x) => x[0] === apFilter) || AP_FILTERS[0])[2]);
-  const readAs = (r) => r.kind === "opt_out" ? '<span class="ap-state wont">OPTED OUT</span>' : r.sentiment === "positive_neutral" ? '<span class="ap-state emailed">POSITIVE / NEUTRAL</span>'
-    : r.sentiment === "negative" ? '<span class="ap-state you">NEGATIVE</span>' : '<span class="ap-state looking">–</span>';
+  const readAs = (r) => (r.kind === "ooo" ? '<span class="ap-state looking">OUT OF OFFICE</span>' : r.kind === "bounce" || r.kind === "left" ? '<span class="ap-state wont">' + (r.kind === "left" ? "LEFT COMPANY" : "BOUNCED") + "</span>"
+    : r.kind === "opt_out" ? '<span class="ap-state wont">OPTED OUT</span>' : r.sentiment === "positive_neutral" ? '<span class="ap-state emailed">POSITIVE / NEUTRAL</span>'
+    : r.sentiment === "negative" ? '<span class="ap-state you">NEGATIVE</span>' : '<span class="ap-state looking">–</span>') + (RESP_LABEL[r.kind] ? '<div class="ap-why">' + esc(RESP_LABEL[r.kind]) + "</div>" : "");
   const toTeam = (r) => r.alerted_at ? '<span class="ap-state emailed">Forwarded ' + esc(apWhen(r.alerted_at)) + "</span>"
+    : !respIsReply(r.kind) && r.kind !== "opt_out" ? '<span class="hint" style="margin:0">not forwarded: ' + esc((RESP_LABEL[r.kind] || r.kind).toLowerCase()) + "</span>"
     : r.kind === "opt_out" || r.sentiment === "negative" ? '<span class="hint" style="margin:0">not forwarded: ' + (r.kind === "opt_out" ? "opted out" : "negative") + "</span>"
     : '<button type="button" class="ap-btn" data-apfwd="' + esc(r.id) + '">Forward now</button>';
   $("ap-resp").innerHTML = show.length ? show.map((r) => '<tr data-apthread="event:' + esc(r.id) + '" title="Open the conversation"><td class="ap-when">' + apOpenBtn(apWhen(r.received_at), "Open the conversation with " + (r.company || r.from_name || r.from_email || "this contact")) + "</td>" +
     "<td><b>" + esc(r.company || r.from_name || r.from_email || "") + '</b><div class="ap-why">' + esc(r.from_name ? r.from_name + " · " : "") + esc(r.from_email || "") + "</div></td>" +
     '<td><div class="ap-clip"><b>' + esc(r.subject || "") + '</b></div><div class="ap-why ap-clip">' + esc(apOwn(r.snippet)) + "</div></td><td>" + readAs(r) + "</td><td>" + toTeam(r) + '</td><td class="ap-why">' + apAddr(r.mailbox) + "</td></tr>").join("")
-    : '<tr><td colspan="6" class="empty">' + (resp.length ? "No replies match this filter." : "No replies yet. Replies to the cold emails show up here.") + "</td></tr>";
+    : '<tr><td colspan="6" class="empty">' + (resp.length ? "Nothing matches this filter." : rc ? "Nothing came back in the last " + d.responses_window_days + " days." : "No replies yet. Replies to the cold emails show up here.") + "</td></tr>";
 
   // Live feed
   const fs = d.feed_sent || [], fi = d.feed_inbox || [], fl = d.leads || [];
@@ -1331,6 +1360,6 @@ document.addEventListener("click", async (e) => {
 // Embedded in Operations: already signed in there, so open straight away (the adapter supplies the passcode).
 if (EMBED) { $("gate").style.display = "none"; $("login").onclick(); }
 </script>
-<div id="ver" class="mono">v1.3.3</div>
+<div id="ver" class="mono">v1.3.4</div>
 </body>
 </html>
