@@ -404,7 +404,8 @@ const HDRS = { apikey: KEY, Authorization: "Bearer " + KEY, "Content-Type": "app
 // Embedded mode (v1.3.0, KAN-786): only when served by Operations at autopilots.fclabz.com/w/jac/, behind the Operations
 // sign-in. Calls then go to the Operations adapter (same origin), which checks each one and adds the passcode server side,
 // so there is no passcode screen there. Everywhere else, including this GitHub Pages copy, nothing changes.
-const EMBED = location.origin === "https://autopilots.fclabz.com" && location.pathname.indexOf("/w/jac") === 0;
+// Operations moved to operations.fclabz.com (11/10); the old origin stays accepted during the switch.
+const EMBED = ["https://operations.fclabz.com", "https://autopilots.fclabz.com"].indexOf(location.origin) !== -1 && location.pathname.indexOf("/w/jac") === 0;
 const fnUrl = (name) => EMBED ? "/api/jac/" + name : BASE + "/functions/v1/" + name;
 const H = EMBED ? { "Content-Type": "application/json" } : HDRS;
 
@@ -1206,6 +1207,6 @@ document.addEventListener("click", async (e) => {
 // Embedded in Operations: already signed in there, so open straight away (the adapter supplies the passcode).
 if (EMBED) { $("gate").style.display = "none"; $("login").onclick(); }
 </script>
-<div style="position:fixed;right:8px;bottom:6px;font-size:11px;opacity:.45;pointer-events:none" class="mono">v1.3.0</div>
+<div style="position:fixed;right:8px;bottom:6px;font-size:11px;opacity:.45;pointer-events:none" class="mono">v1.3.1</div>
 </body>
 </html>
