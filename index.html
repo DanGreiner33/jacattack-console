@@ -608,18 +608,22 @@ async function viewBatch(id, knownTarget) {
 async function loadSchedules() {
   try {
     const rows = await rpc("list_schedules", { p_passcode: passcode });
-    $("sched-list").innerHTML = (rows || []).map((s) =>
-      '<div style="display:flex;gap:10px;padding:5px 0;border-bottom:1px solid var(--rule);align-items:baseline;font-size:13px;" class="mono">' +
-      '<span>' + new Date(s.run_at).toLocaleString([], {month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}) + '</span>' +
+    $("sched-list").innerHTML = (rows || []).map((s) => {
+      const when = new Date(s.run_at).toLocaleString([], {month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
+      const what = (s.vertical || "all") + (s.state ? " · " + s.state : "");
+      return '<div style="display:flex;gap:10px;padding:5px 0;border-bottom:1px solid var(--rule);align-items:baseline;font-size:13px;" class="mono">' +
+      '<span>' + when + '</span>' +
       '<span style="font-weight:600;">' + s.target + ' leads</span>' +
-      '<span style="color:var(--mute);">' + (s.vertical || "all") + (s.state ? " · " + s.state : "") + '</span>' +
+      '<span style="color:var(--mute);">' + what + '</span>' +
       '<span style="color:var(--mute);">' + s.status + (s.batch_id ? " · #" + s.batch_id : "") + '</span>' +
-      (s.status === "pending" ? '<a href="#" data-cancel="' + s.id + '" style="color:var(--red);">cancel</a>' : "") +
-      '</div>'
-    ).join("") || '<span class="hint">Nothing scheduled.</span>';
+      (s.status === "pending" ? '<a href="#" data-cancel="' + s.id + '" data-desc="' + esc(when + ", " + s.target + " leads, " + what) + '" style="color:var(--red);">cancel</a>' : "") +
+      '</div>';
+    }).join("") || '<span class="hint">Nothing scheduled.</span>';
     document.querySelectorAll("[data-cancel]").forEach((a) => {
       a.onclick = async (e) => {
         e.preventDefault();
+        // Q03: name the run and the effect before cancelling it
+        if (!confirm("Cancel the scheduled scan for " + a.dataset.desc + "?\n\nIt will not run. You can schedule it again afterwards.")) return;
         await rpc("cancel_schedule", { p_passcode: passcode, p_id: Number(a.dataset.cancel) });
         loadSchedules();
       };
@@ -778,7 +782,7 @@ $("start").onclick = async () => {
   $("bar").style.background = "var(--green)";
 };
 document.addEventListener("click", (e) => { if (e.target && e.target.id === "monthly-refresh") { e.preventDefault(); loadMonthly(); } if (e.target && e.target.id === "spend-refresh") { e.preventDefault(); loadSpend(); } });
-let clientPoll = null, actOffset = 0;
+let clientPoll = null, actOffset = 0, clientLiveSend = null;
 function clientStatusText(p) {
   const r = p.run, run = r && r.status === "running";
   let t = "";
@@ -792,6 +796,7 @@ function clientStatusText(p) {
 async function pollClientRun() {
   try {
     const p = await rpc("reeng_run_status", { p_passcode: passcode });
+    clientLiveSend = String(p.live_send) === "true";
     $("client-status").textContent = clientStatusText(p);
     loadClientActivity();
     return p;
@@ -799,6 +804,11 @@ async function pollClientRun() {
 }
 async function startClientScan() {
   const n = Math.max(1, Math.min(200, parseInt($("client-count").value || "50", 10)));
+  // Q03: this starts live client emails, so say so before it runs
+  const sendNote = clientLiveSend === false
+    ? "Client sending is OFF right now, so the emails are queued and go out only once it is turned on."
+    : "Emails go out 1-to-1 through the day, starting as soon as the first clients are found. Sent emails cannot be recalled.";
+  if (!confirm("Check clients: find up to " + n + " past clients today with a fitting opening and a verified contact, and email them?\n\n" + sendNote + "\n\nThe count is the daily total, so it adds only the difference over what has already been found today.")) return;
   $("client-status").textContent = "starting...";
   try {
     const r = await rpc("reeng_start_run", { p_passcode: passcode, p_count: n });
@@ -984,7 +994,7 @@ function apPaint() {
     else if (m.connected_at) { pillHtml = '<span class="ap-state emailed">CONNECTED</span>'; note = "ready: press Activate to start sending"; }
     else { pillHtml = '<span class="ap-state looking">NOT CONNECTED</span>'; note = esc((m.last_error || "run Test connection").slice(0, 160)); }
     return "<tr><td><b>" + apAddr(m.email) + "</b> " + pillHtml + '<div class="ap-why">' + (m.display_name ? esc(m.display_name) + " · " : "") + note + '</div></td><td class="ap-num">' + apN(m.total) + '</td><td class="ap-num">' + apN(m.today) + "/" +
-      '<input class="ap-cap" data-email="' + esc(m.email) + '" type="number" min="1" max="50" value="' + esc(m.daily_cap) + '" title="Daily cap. Press Enter to save." style="width:46px;padding:2px 4px;font-size:12px;"></td><td class="ap-num">' + apN(m.week) + '</td><td class="ap-num">' + apN(m.bounced) + "</td>" +
+      '<input class="ap-cap" data-email="' + esc(m.email) + '" data-old="' + esc(m.daily_cap) + '" type="number" min="1" max="50" value="' + esc(m.daily_cap) + '" title="Daily cap. Press Enter to save." style="width:46px;padding:2px 4px;font-size:12px;"></td><td class="ap-num">' + apN(m.week) + '</td><td class="ap-num">' + apN(m.bounced) + "</td>" +
       '<td><button type="button" class="ap-btn ap-test" data-email="' + esc(m.email) + '">Test connection</button> ' + (m.connected_at ? '<button type="button" class="ap-btn ap-testsend" data-email="' + esc(m.email) + '">Send test email</button> ' : "") + '<button type="button" class="ap-btn ap-toggle" data-email="' + esc(m.email) + '" data-active="' + (m.active ? "0" : "1") + '"' + (!m.active && !m.connected_at ? " disabled" : "") + ">" + (m.active ? "Pause" : "Activate") + "</button></td></tr>";
   }).join("") : '<tr><td colspan="6" class="empty">' + (boxes.length ? "No mailboxes match this filter." : "No sending mailboxes yet. Add one below.") + "</td></tr>";
 
@@ -1075,7 +1085,20 @@ document.addEventListener("click", async (e) => {
   const sw = t.closest(".ap-switch");
   if (sw) {
     const turningOn = sw.dataset.on !== "1", key = sw.dataset.key;
-    if (key === "cold_send_enabled" && turningOn && !confirm("Turn ON automatic cold sending?\n\nEmails will start going out from the active mailboxes at their planned times (Mon–Fri, 8am–6pm CT).")) return;
+    // Q03: every switch, both ways, names what it is and what happens next
+    const SW_ASK = {
+      cold_send_enabled: [
+        "Turn ON automatic cold sending?\n\nEmails will start going out from the active mailboxes at their planned times (Mon–Fri, 8am–6pm CT).",
+        "Turn OFF automatic cold sending?\n\nNo cold emails or follow-ups go out from any mailbox until Sending is turned back on. Replies are still read if the Reply watcher is on."],
+      cold_followups_enabled: [
+        "Turn ON follow-ups?\n\nContacts who have not replied get the follow-up emails in the same thread, on the days set under The emails, from the next send onwards.",
+        "Turn OFF follow-ups?\n\nNo follow-up emails go out. First emails keep sending if Sending is on."],
+      cold_inbox_watch_enabled: [
+        "Turn ON the reply watcher?\n\nThe sending mailboxes are read on a schedule, and positive or neutral replies are forwarded to the team automatically.",
+        "Turn OFF the reply watcher?\n\nReplies, bounces and opt-outs stop being read and nothing is forwarded to the team until it is turned back on."]
+    };
+    const ask = SW_ASK[key];
+    if (ask && !confirm(ask[turningOn ? 0 : 1])) return;
     try { await rpc("cold_set_switch", { p_passcode: passcode, p_key: key, p_value: turningOn }); await apLoad(); } catch (er) { alert(apErr(er)); }
     return;
   }
@@ -1108,7 +1131,14 @@ document.addEventListener("click", async (e) => {
     t.disabled = false; return;
   }
   const tg = t.closest(".ap-toggle");
-  if (tg) { try { await rpc("cold_set_mailbox", { p_passcode: passcode, p_email: tg.dataset.email, p_active: tg.dataset.active === "1" }); await apLoad(); } catch (er) { alert(apErr(er)); } return; }
+  if (tg) {
+    // Q03: name the mailbox and the effect
+    const mb = ((apData && apData.mailboxes) || []).find((m) => m.email === tg.dataset.email) || {};
+    const ask = tg.dataset.active === "1"
+      ? "Activate " + tg.dataset.email + "?\n\nIt starts sending cold emails, up to " + (mb.daily_cap || "its cap") + " a weekday, at the planned times while Sending is on."
+      : "Pause " + tg.dataset.email + "?\n\nIt stops sending cold emails and follow-ups until you activate it again.";
+    if (!confirm(ask)) return;
+    try { await rpc("cold_set_mailbox", { p_passcode: passcode, p_email: tg.dataset.email, p_active: tg.dataset.active === "1" }); await apLoad(); } catch (er) { alert(apErr(er)); } return; }
   if (t.id === "ap-add") {
     try {
       await rpc("cold_add_mailbox", { p_passcode: passcode, p_email: $("ap-new-email").value, p_cap: parseInt($("ap-new-cap").value, 10) || 5, p_display: $("ap-new-name").value });
@@ -1126,6 +1156,10 @@ document.addEventListener("click", async (e) => {
   }
   const fw = t.closest("[data-apfwd]");
   if (fw) {
+    // Q03: forwarding sends an email, so name the reply and the recipients first
+    const rr = ((apData && apData.responses) || []).find((x) => String(x.id) === fw.dataset.apfwd) || {};
+    const to = ((apData && apData.config && apData.config.cold_reply_alert_to) || "").replace(/,\s*/g, ", ") || "the forward-to addresses";
+    if (!confirm("Forward the reply from " + (rr.from_name || rr.from_email || "this contact") + (rr.company ? " at " + rr.company : "") + " to " + to + " now?\n\nThis sends an email to the team right away.")) return;
     fw.disabled = true; fw.textContent = "Forwarding…";
     try { await rpc("cold_forward", { p_passcode: passcode, p_id: parseInt(fw.dataset.apfwd, 10) }); await apLoad(); } catch (er) { alert("Could not forward: " + apErr(er)); fw.disabled = false; fw.textContent = "Forward now"; }
     return;
@@ -1141,6 +1175,10 @@ document.addEventListener("keydown", async (e) => {
     e.preventDefault(); const [kind, rid] = e.target.dataset.apthread.split(":"); apThread(kind, parseInt(rid, 10));
   }
   if (e.key === "Enter" && e.target && e.target.classList && e.target.classList.contains("ap-cap")) {
+    // Q03: confirm the cap change, naming the mailbox and the old and new caps; cancelling puts the old value back
+    const el = e.target, was = el.dataset.old, now = el.value.trim();
+    if (now === was) return;
+    if (!confirm("Change the daily cap for " + el.dataset.email + " from " + was + " to " + now + " emails a weekday?\n\nIt applies from the next send.")) { el.value = was; return; }
     try { await rpc("cold_set_mailbox", { p_passcode: passcode, p_email: e.target.dataset.email, p_cap: parseInt(e.target.value, 10) }); await apLoad(); } catch (er) { alert(apErr(er)); }
   }
 });
