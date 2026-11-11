@@ -187,7 +187,7 @@
       </div>
       <button id="client-start" class="btn-primary" style="width:100%;font-size:15px;padding:10px;">Check clients</button>
       <div id="client-status" class="mono" style="font-size:12px;color:var(--mute);margin-top:8px;"></div>
-      <div class="hint">Finds that many past clients with a current fitting opening and a verified contact, then emails them 1-to-1 through the day (<span id="client-window">during the weekday send window shown under Autopilot, Behind the scenes</span>). Sends start as soon as the first clients are found. The count is the daily total, so running 50 after 25 adds 25 more.</div>
+      <div class="hint">Finds that many past clients with a current fitting opening and a verified contact, then emails them 1-to-1 through the day (weekdays, in the client send run's own hours). Sends start as soon as the first clients are found. The count is the daily total, so running 50 after 25 adds 25 more.</div>
     </div>
     </div>
 
@@ -719,7 +719,6 @@ $("login").onclick = async () => {
     let lastTab = null;
     try { lastTab = localStorage.getItem("jac_last_tab"); } catch (_) {}
     if (lastTab === "auto" && !/^#thread=/.test(location.hash || "")) apTabs("auto");
-    else if (!/^#thread=/.test(location.hash || "")) apLoad();   // Q06: one read so the Check clients hint shows the live send window
     apHashThread();
   } catch (e) {
     if (EMBED) {   // no passcode to type here: say what went wrong and offer a retry
@@ -1071,7 +1070,6 @@ function apPaint() {
   // Behind the scenes
   const sw = (key, label) => { const o = c[key] === "true"; return '<button type="button" class="ap-switch" data-key="' + key + '" data-on="' + (o ? "1" : "0") + '" style="padding:10px 16px;border:2px solid var(--ink);font-weight:700;font-size:14px;background:' + (o ? "var(--green)" : "var(--paper)") + ";color:" + (o ? "#fff" : "var(--ink)") + ';">' + esc(label) + ": " + (o ? "ON" : "OFF") + "</button>"; };
   $("ap-switches").innerHTML = sw("cold_send_enabled", "Sending") + sw("cold_followups_enabled", "Follow-ups") + sw("cold_inbox_watch_enabled", "Reply watcher");
-  $("client-window").textContent = apWindowText(c);
   $("ap-facts").innerHTML = "Window " + esc(apWindowText(c)) + " · follow-up after " + esc(c.cold_followup_after_days || 3) + " days · last inbox check " +
     (c.cold_inbox_watch_last_run ? esc(apWhen(c.cold_inbox_watch_last_run)) : "never") + " · leads refreshed " + (c.cold_leads_last_refresh ? esc(apWhen(c.cold_leads_last_refresh)) : "never");
   const setIf = (id, v) => { const el = $(id); if (document.activeElement !== el) el.value = v; };
