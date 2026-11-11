@@ -147,8 +147,9 @@
       <input id="sched-time" type="datetime-local" style="margin-bottom:12px;">
       <label class="label" for="sched-count">Leads to find</label>
       <input id="sched-count" type="number" min="1" max="1000" value="25" class="mono" style="margin-bottom:12px;">
-      <div style="display:flex;gap:8px;margin-bottom:16px;">
-        <select id="sched-vertical" style="flex:1;">
+      <div style="display:flex;gap:8px;margin-bottom:16px;align-items:flex-end;">
+        <div style="flex:1;min-width:0;"><label class="label" for="sched-vertical">Vertical</label>
+        <select id="sched-vertical">
           <option value="core">Core (legal + accounting)</option>
           <option value="">All verticals</option>
           <option value="legal">Legal only</option>
@@ -156,8 +157,9 @@
           <option value="tax">Tax/CPA firms only</option>
           <option value="temp">Temp staffing</option>
           <option value="nonlegal">Non-legal/tax (mgr, admin &amp; accounting)</option>
-        </select>
-        <input id="sched-state" maxlength="2" placeholder="State" class="mono" style="width:80px;">
+        </select></div>
+        <div style="width:80px;"><label class="label" for="sched-state">State</label>
+        <input id="sched-state" maxlength="2" placeholder="Any" class="mono"></div>
       </div>
       <button id="sched-btn" class="btn-primary" style="font-size:15px;padding:10px;">Schedule</button>
       <div id="sched-err" class="err" style="display:none;"></div>
@@ -166,7 +168,7 @@
 
     <div class="panel">
       <div class="display" style="font-size:22px;font-weight:700;margin-bottom:12px;">CHECK CLIENTS</div>
-      <div style="font-size:11px;font-weight:700;letter-spacing:.04em;margin-bottom:4px;">CLIENTS TO CHECK</div>
+      <label class="label" for="client-count">Clients to check</label>
       <input id="client-count" class="mono" type="number" value="50" min="1" max="200" style="width:100%;padding:8px;font-size:18px;font-weight:700;box-sizing:border-box;" />
       <div style="display:flex;gap:6px;margin:6px 0 10px;">
         <button class="preset client-preset" data-n="10">10</button>
@@ -1007,7 +1009,7 @@ function apPaint() {
     else if (m.connected_at) { pillHtml = '<span class="ap-state emailed">CONNECTED</span>'; note = "ready: press Activate to start sending"; }
     else { pillHtml = '<span class="ap-state looking">NOT CONNECTED</span>'; note = esc((m.last_error || "run Test connection").slice(0, 160)); }
     return "<tr><td><b>" + apAddr(m.email) + "</b> " + pillHtml + '<div class="ap-why">' + (m.display_name ? esc(m.display_name) + " · " : "") + note + '</div></td><td class="ap-num">' + apN(m.total) + '</td><td class="ap-num">' + apN(m.today) + "/" +
-      '<input class="ap-cap" data-email="' + esc(m.email) + '" data-old="' + esc(m.daily_cap) + '" type="number" min="1" max="50" value="' + esc(m.daily_cap) + '" title="Daily cap. Press Enter to save." style="width:46px;padding:2px 4px;font-size:12px;"></td><td class="ap-num">' + apN(m.week) + '</td><td class="ap-num">' + apN(m.bounced) + "</td>" +
+      '<input class="ap-cap" data-email="' + esc(m.email) + '" data-old="' + esc(m.daily_cap) + '" type="number" min="1" max="50" value="' + esc(m.daily_cap) + '" title="Daily cap. Press Enter to save." aria-label="Daily cap for ' + esc(m.email) + ', press Enter to save" style="width:46px;padding:2px 4px;font-size:12px;"></td><td class="ap-num">' + apN(m.week) + '</td><td class="ap-num">' + apN(m.bounced) + "</td>" +
       '<td><button type="button" class="ap-btn ap-test" data-email="' + esc(m.email) + '">Test connection</button> ' + (m.connected_at ? '<button type="button" class="ap-btn ap-testsend" data-email="' + esc(m.email) + '">Send test email</button> ' : "") + '<button type="button" class="ap-btn ap-toggle" data-email="' + esc(m.email) + '" data-active="' + (m.active ? "0" : "1") + '"' + (!m.active && !m.connected_at ? " disabled" : "") + ">" + (m.active ? "Pause" : "Activate") + "</button></td></tr>";
   }).join("") : '<tr><td colspan="6" class="empty">' + (boxes.length ? "No mailboxes match this filter." : "No sending mailboxes yet. Add one below.") + "</td></tr>";
 
@@ -1131,7 +1133,7 @@ document.addEventListener("click", async (e) => {
     try {
       const r = await rpc("cold_test_mailbox", { p_passcode: passcode, p_email: test.dataset.email });
       let html = '<div style="color:' + (r.ok ? "var(--green)" : "var(--red)") + ';"><b>' + esc(test.dataset.email) + ":</b> " + esc(r.message) + "</div>";
-      if (!r.ok && r.consent_url) html += '<div style="margin-top:4px;">Consent link for that account’s Global Admin (open once, then Test again):<br><input readonly value="' + esc(r.consent_url) + '" class="mono" style="font-size:11px;" onclick="this.select()"></div>';
+      if (!r.ok && r.consent_url) html += '<div style="margin-top:4px;">Consent link for that account’s Global Admin (open once, then Test again):<br><input readonly aria-label="Consent link" value="' + esc(r.consent_url) + '" class="mono" style="font-size:11px;" onclick="this.select()"></div>';
       $("ap-add-msg").innerHTML = html; apToast(html, r.ok); await apLoad();
     } catch (er) { $("ap-add-msg").innerHTML = '<span class="err">' + esc(apErr(er)) + "</span>"; }
     test.textContent = old; test.disabled = false; return;
