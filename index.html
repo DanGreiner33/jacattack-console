@@ -172,7 +172,7 @@
       </div>
       <button id="client-start" class="btn-primary" style="width:100%;font-size:15px;padding:10px;">Check clients</button>
       <div id="client-status" class="mono" style="font-size:12px;color:var(--mute);margin-top:8px;"></div>
-      <div class="hint">Finds that many past clients with a current fitting opening and a verified contact, then emails them 1-to-1 through the day (Mon-Fri, 8am-4pm CT). Sends start as soon as the first clients are found. The count is the daily total, so running 50 after 25 adds 25 more.</div>
+      <div class="hint">Finds that many past clients with a current fitting opening and a verified contact, then emails them 1-to-1 through the day (<span id="client-window">during the weekday send window shown under Autopilot, Behind the scenes</span>). Sends start as soon as the first clients are found. The count is the daily total, so running 50 after 25 adds 25 more.</div>
     </div>
     </div>
 
@@ -671,6 +671,7 @@ $("login").onclick = async () => {
     let lastTab = null;
     try { lastTab = localStorage.getItem("jac_last_tab"); } catch (_) {}
     if (lastTab === "auto" && !/^#thread=/.test(location.hash || "")) apTabs("auto");
+    else if (!/^#thread=/.test(location.hash || "")) apLoad();   // Q06: one read so the Check clients hint shows the live send window
     apHashThread();
   } catch (e) {
     if (EMBED) {   // no passcode to type here: say what went wrong and offer a retry
@@ -877,6 +878,9 @@ function apErr(e) {
   return m;
 }
 const apN = (v) => (Number(v) || 0).toLocaleString();
+// Q06: the send window comes from the live config (the same keys the facts line always read), never from hard-coded copy
+const apHour = (h) => { h = parseInt(h, 10); if (!isFinite(h)) return "?"; return h === 0 || h === 24 ? "12am" : h < 12 ? h + "am" : h === 12 ? "12pm" : (h - 12) + "pm"; };
+const apWindowText = (c) => "Mon-Fri " + apHour((c && c.cold_send_hour_start) || 8) + "-" + apHour((c && c.cold_send_hour_end) || 18) + " CT";
 const apWhen = (t) => t ? new Date(t).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
 const apHhmm = (t) => new Date(t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 const apAddr = (e) => esc(e || "").replace("@", "<wbr>@");
@@ -1017,7 +1021,8 @@ function apPaint() {
   // Behind the scenes
   const sw = (key, label) => { const o = c[key] === "true"; return '<button type="button" class="ap-switch" data-key="' + key + '" data-on="' + (o ? "1" : "0") + '" style="padding:10px 16px;border:2px solid var(--ink);font-weight:700;font-size:14px;background:' + (o ? "var(--green)" : "var(--paper)") + ";color:" + (o ? "#fff" : "var(--ink)") + ';">' + esc(label) + ": " + (o ? "ON" : "OFF") + "</button>"; };
   $("ap-switches").innerHTML = sw("cold_send_enabled", "Sending") + sw("cold_followups_enabled", "Follow-ups") + sw("cold_inbox_watch_enabled", "Reply watcher");
-  $("ap-facts").innerHTML = "Window Mon–Fri " + esc(c.cold_send_hour_start || 8) + "am–" + (parseInt(c.cold_send_hour_end || 18, 10) - 12) + "pm CT · follow-up after " + esc(c.cold_followup_after_days || 3) + " days · last inbox check " +
+  $("client-window").textContent = apWindowText(c);
+  $("ap-facts").innerHTML = "Window " + esc(apWindowText(c)) + " · follow-up after " + esc(c.cold_followup_after_days || 3) + " days · last inbox check " +
     (c.cold_inbox_watch_last_run ? esc(apWhen(c.cold_inbox_watch_last_run)) : "never") + " · leads refreshed " + (c.cold_leads_last_refresh ? esc(apWhen(c.cold_leads_last_refresh)) : "never");
   const setIf = (id, v) => { const el = $(id); if (document.activeElement !== el) el.value = v; };
   setIf("ap-sig", d.signature_html || ""); setIf("ap-fwd", c.cold_reply_alert_to || "");
@@ -1093,7 +1098,7 @@ document.addEventListener("click", async (e) => {
     // Q03: every switch, both ways, names what it is and what happens next
     const SW_ASK = {
       cold_send_enabled: [
-        "Turn ON automatic cold sending?\n\nEmails will start going out from the active mailboxes at their planned times (Mon–Fri, 8am–6pm CT).",
+        "Turn ON automatic cold sending?\n\nEmails will start going out from the active mailboxes at their planned times (" + apWindowText(apData && apData.config) + ").",
         "Turn OFF automatic cold sending?\n\nNo cold emails or follow-ups go out from any mailbox until Sending is turned back on. Replies are still read if the Reply watcher is on."],
       cold_followups_enabled: [
         "Turn ON follow-ups?\n\nContacts who have not replied get the follow-up emails in the same thread, on the days set under The emails, from the next send onwards.",
