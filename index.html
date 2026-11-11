@@ -89,6 +89,12 @@
   /* Q10: text-style actions are real buttons; they look like the links they replaced */
   .lnk { background: none; border: none; padding: 0; color: #0E5FA8; text-decoration: underline; font: inherit; cursor: pointer; }
   .lnk:hover { color: var(--ink); }
+  /* Q15: one version badge. Inside Operations (embedded or framed) the shell shows its own, so this one hides;
+     standalone, the page keeps room at the bottom so the badge never sits on top of the last panel. */
+  #ver { position: fixed; right: 8px; bottom: 6px; font-size: 11px; opacity: .45; pointer-events: none; }
+  body { padding-bottom: 32px; }
+  html.framed #ver { display: none; }
+  html.framed body { padding-bottom: 20px; }
 </style>
 </head>
 <body>
@@ -414,6 +420,9 @@ const HDRS = { apikey: KEY, Authorization: "Bearer " + KEY, "Content-Type": "app
 const EMBED = ["https://operations.fclabz.com", "https://autopilots.fclabz.com"].indexOf(location.origin) !== -1 && location.pathname.indexOf("/w/jac") === 0;
 const fnUrl = (name) => EMBED ? "/api/jac/" + name : BASE + "/functions/v1/" + name;
 const H = EMBED ? { "Content-Type": "application/json" } : HDRS;
+// Q15: framed inside Operations (or any page) counts as embedded for the version badge
+const FRAMED = (() => { try { return window.top !== window.self; } catch (_) { return true; } })();
+if (EMBED || FRAMED) document.documentElement.classList.add("framed");
 
 let passcode = "", batchId = null, running = false, stopFlag = false, hits = [];
 const $ = (id) => document.getElementById(id);
@@ -1290,6 +1299,6 @@ document.addEventListener("click", async (e) => {
 // Embedded in Operations: already signed in there, so open straight away (the adapter supplies the passcode).
 if (EMBED) { $("gate").style.display = "none"; $("login").onclick(); }
 </script>
-<div style="position:fixed;right:8px;bottom:6px;font-size:11px;opacity:.45;pointer-events:none" class="mono">v1.3.2</div>
+<div id="ver" class="mono">v1.3.2</div>
 </body>
 </html>
