@@ -38,7 +38,7 @@ begin
         select e.id, e.received_at, e.kind, e.mailbox, e.from_email, e.from_name, e.subject, left(e.snippet,300) snippet, e.sentiment, e.alerted_at,
                l.company_name company, l.poc_name, l.job_title
           from inbox_events e left join contact_touches t on t.id = e.matched_touch_id left join cold_leads l on l.id = t.lead_id and t.source='cold_autopilot'
-         -- 2026-11-11 Responses parity (Hub 1.35.120, Operations v1.18.2): every response kind, last 30 days
+         -- 2026-11-11 Responses parity (Hub 1.35.121, Operations v1.18.2): every response kind, last 30 days
          where e.kind in ('reply','colleague_reply','opt_out','ooo','bounce','left') and e.received_at > now() - interval '30 days'
            and e.mailbox in (select email from send_mailboxes where lane='cold')
          order by e.received_at desc, e.id desc limit 2000) x), '[]'::json),
