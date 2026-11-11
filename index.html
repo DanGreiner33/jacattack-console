@@ -70,7 +70,7 @@
   .ap-why { color: var(--mute); font-size: 12px; margin-top: 2px; }
   .ap-clip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   tr[data-apthread] { cursor: pointer; }
-  tr[data-apthread]:focus-visible { outline: 3px solid var(--amber); outline-offset: -3px; }
+  tr[data-apthread]:focus-within td { background: #FFF7E0; }
   tr[data-apthread]:hover td { background: #FFF7E0; }
   .ap-state { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .04em; padding: 2px 7px; border: 1px solid var(--ink); white-space: normal; }
   .ap-state.emailed { background: #E3F4EC; border-color: var(--green); color: #0f5d3c; }
@@ -86,6 +86,9 @@
   .ap-msg-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; margin-top: 8px; }
   .ap-token { padding: 3px 9px; border: 1px solid var(--ink); background: var(--paper); font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
   .ap-token:hover { background: var(--amber); }
+  /* Q10: text-style actions are real buttons; they look like the links they replaced */
+  .lnk { background: none; border: none; padding: 0; color: #0E5FA8; text-decoration: underline; font: inherit; cursor: pointer; }
+  .lnk:hover { color: var(--ink); }
 </style>
 </head>
 <body>
@@ -180,7 +183,7 @@
       <div class="panel" id="act-panel">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;gap:8px;flex-wrap:wrap;">
           <div class="display" style="font-size:22px;font-weight:700;">CLIENT EMAILS &mdash; <span id="act-range">THIS WEEK</span></div>
-          <div class="mono" style="font-size:12px;"><a href="#" id="act-prev">&larr; prev</a> &nbsp; <a href="#" id="act-next">next &rarr;</a> &nbsp; <a href="#" id="act-refresh">refresh</a></div>
+          <div class="mono" style="font-size:12px;"><button type="button" class="lnk" id="act-prev">&larr; prev</button> &nbsp; <button type="button" class="lnk" id="act-next">next &rarr;</button> &nbsp; <button type="button" class="lnk" id="act-refresh">refresh</button></div>
         </div>
         <div id="act-totals" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;"></div>
         <div id="act-days" class="mono" style="display:flex;gap:6px;flex-wrap:wrap;font-size:12px;margin-bottom:10px;"></div>
@@ -200,7 +203,7 @@
       <div class="panel">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
           <div class="display" style="font-size:22px;font-weight:700;">RECENT BATCHES</div>
-          <a href="#" id="recent-toggle" class="mono" style="font-size:12px;">show all</a>
+          <button type="button" id="recent-toggle" class="lnk mono" style="font-size:12px;">show all</button>
         </div>
         <div id="recent-list" class="mono" style="font-size:13px;max-height:220px;overflow-y:auto;"></div>
       </div>
@@ -208,7 +211,7 @@
       <div class="panel">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
           <div class="display" style="font-size:22px;font-weight:700;">MONTHLY LOG</div>
-          <a href="#" id="monthly-refresh" class="mono" style="font-size:12px;">refresh</a>
+          <button type="button" id="monthly-refresh" class="lnk mono" style="font-size:12px;">refresh</button>
         </div>
         <div id="monthly-list" class="mono" style="font-size:12px;"></div>
         <div class="hint">Snapshots on the 1st of each month; SB / ZB / LLM $ then reset for the new month.</div>
@@ -218,7 +221,7 @@
       <div class="panel">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
           <div class="display" style="font-size:22px;font-weight:700;">LLM SPEND <span id="spend-models-label" class="mono" style="font-size:12px;color:var(--mute);font-weight:400;"></span></div>
-          <a href="#" id="spend-refresh" class="mono" style="font-size:12px;">refresh</a>
+          <button type="button" id="spend-refresh" class="lnk mono" style="font-size:12px;">refresh</button>
         </div>
         <div id="spend-big" style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:10px;"></div>
         <div id="spend-bars" style="display:flex;align-items:flex-end;gap:3px;height:54px;margin-bottom:6px;"></div>
@@ -371,11 +374,11 @@
     </div>
 
     <div id="ap-toast" style="display:none;position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:80;max-width:640px;width:calc(100% - 32px);padding:12px 16px;border:2px solid var(--ink);background:var(--paper);box-shadow:0 8px 30px rgba(0,0,0,.3);font-size:14px;"></div>
-    <div id="ap-test-modal" style="display:none;position:fixed;inset:0;background:rgba(22,35,46,.6);z-index:60;align-items:flex-start;justify-content:center;padding:8vh 16px;">
+    <div id="ap-test-modal" role="dialog" aria-modal="true" aria-labelledby="ap-test-title" style="display:none;position:fixed;inset:0;background:rgba(22,35,46,.6);z-index:60;align-items:flex-start;justify-content:center;padding:8vh 16px;">
       <div class="panel" style="max-width:520px;width:100%;">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
-          <div class="display" style="font-size:22px;font-weight:700;">Send a test email</div>
-          <a href="#" id="ap-test-close" class="mono" style="font-size:13px;">close</a>
+          <div id="ap-test-title" class="display" style="font-size:22px;font-weight:700;">Send a test email</div>
+          <button type="button" id="ap-test-close" class="lnk mono" style="font-size:13px;" aria-label="Close the test email window">close</button>
         </div>
         <div class="hint" style="margin:0 0 10px;">Sends the real message, through the real send path, from <b id="ap-test-from"></b> to an address you choose. It is not tied to any lead. The subject starts with TEST. Follow-up tests reply in the same thread as the first-email test to the same address, so send the first email first.</div>
         <label class="label" for="ap-test-to">Send the test to</label>
@@ -390,7 +393,7 @@
       <div class="panel" style="max-width:860px;width:100%;max-height:88vh;overflow:auto;">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">
           <div id="ap-modal-title" class="display" style="font-size:22px;font-weight:700;">Conversation</div>
-          <a href="#" id="ap-modal-close" class="mono" style="font-size:13px;" role="button" aria-label="Close the conversation">close</a>
+          <button type="button" id="ap-modal-close" class="lnk mono" style="font-size:13px;" aria-label="Close the conversation">close</button>
         </div>
         <div id="ap-modal-body" style="font-size:14px;"></div>
       </div>
@@ -570,7 +573,7 @@ async function loadRecent() {
     const rows = await rpc("recent_batches", { p_passcode: passcode, p_limit: recentShowAll ? 500 : 8 });
     $("recent-list").innerHTML = (rows || []).map((b) =>
       '<div style="display:flex;gap:12px;padding:5px 0;border-bottom:1px solid var(--rule);align-items:baseline;">' +
-      '<a href="#" data-view="' + b.id + '" data-target="' + (b.target_hits ?? 0) + '" style="font-weight:600;">#' + b.id + '</a>' +
+      '<button type="button" class="lnk" data-view="' + b.id + '" data-target="' + (b.target_hits ?? 0) + '" style="font-weight:600;" aria-label="Show batch ' + b.id + '">#' + b.id + '</button>' +
       '<span style="color:var(--mute);">' + new Date(b.created_at).toLocaleString([], {month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}) + '</span>' +
       '<span title="' + (b.source === "autopilot" ? "Booked by the cold autopilot schedule" : "Started by hand from this console") + '" style="font-weight:600;color:' + (b.source === "autopilot" ? "var(--green)" : "var(--mute)") + ';">' + (b.source === "autopilot" ? "Autopilot" : "Manual") + '</span>' +
       '<span style="color:var(--mute);">' + (b.vertical_filter || "all") + '</span>' +
@@ -616,7 +619,7 @@ async function loadSchedules() {
       '<span style="font-weight:600;">' + s.target + ' leads</span>' +
       '<span style="color:var(--mute);">' + what + '</span>' +
       '<span style="color:var(--mute);">' + s.status + (s.batch_id ? " · #" + s.batch_id : "") + '</span>' +
-      (s.status === "pending" ? '<a href="#" data-cancel="' + s.id + '" data-desc="' + esc(when + ", " + s.target + " leads, " + what) + '" style="color:var(--red);">cancel</a>' : "") +
+      (s.status === "pending" ? '<button type="button" class="lnk" data-cancel="' + s.id + '" data-desc="' + esc(when + ", " + s.target + " leads, " + what) + '" style="color:var(--red);" aria-label="Cancel the run on ' + esc(when) + '">cancel</button>' : "") +
       '</div>';
     }).join("") || '<span class="hint">Nothing scheduled.</span>';
     document.querySelectorAll("[data-cancel]").forEach((a) => {
@@ -882,6 +885,8 @@ const apN = (v) => (Number(v) || 0).toLocaleString();
 const apHour = (h) => { h = parseInt(h, 10); if (!isFinite(h)) return "?"; return h === 0 || h === 24 ? "12am" : h < 12 ? h + "am" : h === 12 ? "12pm" : (h - 12) + "pm"; };
 const apWindowText = (c) => "Mon-Fri " + apHour((c && c.cold_send_hour_start) || 8) + "-" + apHour((c && c.cold_send_hour_end) || 18) + " CT";
 const apWhen = (t) => t ? new Date(t).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+// Q10: rows keep their table semantics; the keyboard reaches each conversation through a real button in the first cell
+const apOpenBtn = (label, aria) => '<button type="button" class="lnk ap-open" aria-label="' + esc(aria) + '">' + esc(label) + "</button>";
 const apHhmm = (t) => new Date(t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 const apAddr = (e) => esc(e || "").replace("@", "<wbr>@");
 const apOwn = (s) => String(s || "").split(/\n?(From:|-----Original Message|On .{0,80} wrote:)/i)[0].trim();
@@ -948,7 +953,7 @@ function apPaint() {
   const toTeam = (r) => r.alerted_at ? '<span class="ap-state emailed">Forwarded ' + esc(apWhen(r.alerted_at)) + "</span>"
     : r.kind === "opt_out" || r.sentiment === "negative" ? '<span class="hint" style="margin:0">not forwarded: ' + (r.kind === "opt_out" ? "opted out" : "negative") + "</span>"
     : '<button type="button" class="ap-btn" data-apfwd="' + esc(r.id) + '">Forward now</button>';
-  $("ap-resp").innerHTML = show.length ? show.map((r) => '<tr data-apthread="event:' + esc(r.id) + '" title="Open the conversation" tabindex="0" role="button" aria-label="Open the conversation"><td class="ap-when">' + esc(apWhen(r.received_at)) + "</td>" +
+  $("ap-resp").innerHTML = show.length ? show.map((r) => '<tr data-apthread="event:' + esc(r.id) + '" title="Open the conversation"><td class="ap-when">' + apOpenBtn(apWhen(r.received_at), "Open the conversation with " + (r.company || r.from_name || r.from_email || "this contact")) + "</td>" +
     "<td><b>" + esc(r.company || r.from_name || r.from_email || "") + '</b><div class="ap-why">' + esc(r.from_name ? r.from_name + " · " : "") + esc(r.from_email || "") + "</div></td>" +
     '<td><div class="ap-clip"><b>' + esc(r.subject || "") + '</b></div><div class="ap-why ap-clip">' + esc(apOwn(r.snippet)) + "</div></td><td>" + readAs(r) + "</td><td>" + toTeam(r) + '</td><td class="ap-why">' + apAddr(r.mailbox) + "</td></tr>").join("")
     : '<tr><td colspan="6" class="empty">' + (resp.length ? "No replies match this filter." : "No replies yet. Replies to the cold emails show up here.") + "</td></tr>";
@@ -970,20 +975,20 @@ function apPaint() {
       : '<span class="ap-state wont">SKIPPED</span><div class="ap-why">' + esc(AP_SKIP[r.skip_reason] || r.skip_reason || "") + "</div>";
     $("ap-feed-cols").innerHTML = '<col style="width:140px"><col style="width:20%"><col style="width:24%"><col><col style="width:18%">';
     $("ap-feed-head").innerHTML = "<tr><th>Found</th><th>Company</th><th>Contact</th><th>Role</th><th>Status</th></tr>";
-    $("ap-feed").innerHTML = sh.length ? sh.map((r) => "<tr" + (r.touch_id ? ' data-apthread="touch:' + esc(r.touch_id) + '" title="Open the email" tabindex="0" role="button" aria-label="Open the email"' : "") + '><td class="ap-when">' + esc(apWhen(r.created_at)) + "</td><td><b>" + esc(r.company || "") + "</b></td>" +
+    $("ap-feed").innerHTML = sh.length ? sh.map((r) => "<tr" + (r.touch_id ? ' data-apthread="touch:' + esc(r.touch_id) + '" title="Open the email"' : "") + '><td class="ap-when">' + (r.touch_id ? apOpenBtn(apWhen(r.created_at), "Open the email to " + (r.company || r.email || "this lead")) : esc(apWhen(r.created_at))) + "</td><td><b>" + esc(r.company || "") + "</b></td>" +
       "<td>" + esc(r.poc_name || "") + '<div class="ap-why">' + esc(r.poc_title || "") + '</div><div class="ap-why">' + apAddr(r.email) + "</div></td>" +
       "<td>" + (r.job_url ? '<a href="' + esc(r.job_url) + '" target="_blank" rel="noopener">' + esc(r.job_title || "posting") + "</a>" : esc(r.job_title || "")) + '<div class="ap-why">' + esc(age(r.posted_at)) + "</div></td><td>" + status(r) + "</td></tr>").join("")
       : '<tr><td colspan="5" class="empty">' + (fl.length ? "No leads match this filter." : "No leads yet. They appear after a scan finishes.") + "</td></tr>";
   } else if (apFeed === "sent") {
     $("ap-feed-cols").innerHTML = '<col style="width:140px"><col style="width:22%"><col style="width:20%"><col><col style="width:90px"><col style="width:18%">';
     $("ap-feed-head").innerHTML = "<tr><th>Sent</th><th>To</th><th>Company</th><th>Subject</th><th>#</th><th>From</th></tr>";
-    $("ap-feed").innerHTML = fs.length ? fs.map((r) => '<tr data-apthread="touch:' + esc(r.id) + '" title="Open the email" tabindex="0" role="button" aria-label="Open the email"><td class="ap-when">' + esc(apWhen(r.sent_at)) + "</td><td>" + apAddr(r.email) + "</td><td><b>" + esc(r.company || "") + "</b></td>" +
+    $("ap-feed").innerHTML = fs.length ? fs.map((r) => '<tr data-apthread="touch:' + esc(r.id) + '" title="Open the email"><td class="ap-when">' + apOpenBtn(apWhen(r.sent_at), "Open the email to " + (r.company || r.email || "this contact")) + "</td><td>" + apAddr(r.email) + "</td><td><b>" + esc(r.company || "") + "</b></td>" +
       '<td><div class="ap-clip" title="' + esc(r.subject || "") + '">' + esc(r.subject || "") + "</div></td><td>" + (r.step > 2 ? "follow-up 2" : r.step > 1 ? "follow-up 1" : "first") + '</td><td class="ap-why">' + apAddr(r.mailbox) + "</td></tr>").join("")
       : '<tr><td colspan="6" class="empty">Nothing sent yet.</td></tr>';
   } else {
     $("ap-feed-cols").innerHTML = '<col style="width:140px"><col style="width:120px"><col style="width:20%"><col style="width:18%"><col><col style="width:18%">';
     $("ap-feed-head").innerHTML = "<tr><th>Received</th><th>Type</th><th>From</th><th>Company</th><th>Subject / message</th><th>Mailbox</th></tr>";
-    $("ap-feed").innerHTML = fi.length ? fi.map((r) => { const k = AP_KIND[r.kind] || [String(r.kind || "").toUpperCase(), "looking"]; return '<tr data-apthread="event:' + esc(r.id) + '" tabindex="0" role="button" aria-label="Open the conversation" title="Open the conversation" tabindex="0" role="button" aria-label="Open the conversation"><td class="ap-when">' + esc(apWhen(r.received_at)) + '</td><td><span class="ap-state ' + k[1] + '">' + esc(k[0]) + "</span></td><td>" + apAddr(r.from_email) + "</td>" +
+    $("ap-feed").innerHTML = fi.length ? fi.map((r) => { const k = AP_KIND[r.kind] || [String(r.kind || "").toUpperCase(), "looking"]; return '<tr data-apthread="event:' + esc(r.id) + '" title="Open the conversation"><td class="ap-when">' + apOpenBtn(apWhen(r.received_at), "Open the conversation with " + (r.company || r.from_email || "this sender")) + '</td><td><span class="ap-state ' + k[1] + '">' + esc(k[0]) + "</span></td><td>" + apAddr(r.from_email) + "</td>" +
       "<td><b>" + esc(r.company || "") + '</b></td><td><div class="ap-clip"><b>' + esc(r.subject || "") + '</b></div><div class="ap-why ap-clip">' + esc(apOwn(r.snippet)) + '</div></td><td class="ap-why">' + apAddr(r.mailbox) + "</td></tr>"; }).join("")
       : '<tr><td colspan="6" class="empty">Nothing has come back yet: no replies, bounces or out-of-office notes.</td></tr>';
   }
@@ -1034,7 +1039,15 @@ function apPaint() {
     "<tr><td>" + esc(w.week) + '</td><td class="ap-num">' + apN(w.first_touches) + '</td><td class="ap-num">' + apN(w.follow_ups) + '</td><td class="ap-num">' + apN(w.replied_contacts) + '</td><td class="ap-num">' + (w.first_touches ? (100 * w.replied_contacts / w.first_touches).toFixed(1) + "%" : "–") + '</td><td class="ap-num">' + apN(w.failed) + "</td></tr>").join("") + "</tbody></table>" : '<div class="hint">No sends yet.</div>';
 }
 
-let apReturnFocus = null;
+let apReturnFocus = null, apTestReturn = null;
+function apCloseTest() {
+  $("ap-test-modal").style.display = "none";
+  // the row may have been repainted by the 60 s refresh: fall back to the same mailbox's new button
+  let back = apTestReturn && document.contains(apTestReturn) ? apTestReturn : null;
+  if (!back) back = Array.from(document.querySelectorAll(".ap-testsend")).find((b) => b.dataset.email === $("ap-test-from").textContent) || null;
+  if (back) back.focus();
+  apTestReturn = null;
+}
 function apCloseModal() {
   $("ap-modal").style.display = "none";
   if (apReturnFocus && document.contains(apReturnFocus)) apReturnFocus.focus();
@@ -1127,9 +1140,10 @@ document.addEventListener("click", async (e) => {
   if (ts) {
     $("ap-test-from").textContent = ts.dataset.email; $("ap-test-msg").textContent = "";
     try { $("ap-test-to").value = localStorage.getItem("ap_test_to") || ""; } catch (_) {}
+    apTestReturn = ts;   // Q10: focus goes back to this button when the dialog closes
     $("ap-test-modal").style.display = "flex"; $("ap-test-to").focus(); return;
   }
-  if (t.id === "ap-test-close" || t.id === "ap-test-modal") { e.preventDefault(); $("ap-test-modal").style.display = "none"; return; }
+  if (t.id === "ap-test-close" || t.id === "ap-test-modal") { e.preventDefault(); apCloseTest(); return; }
   if (t.id === "ap-test-go") {
     const to = $("ap-test-to").value.trim();
     t.disabled = true; $("ap-test-msg").innerHTML = '<span class="hint">Sending…</span>';
@@ -1174,16 +1188,16 @@ document.addEventListener("click", async (e) => {
     try { await rpc("cold_forward", { p_passcode: passcode, p_id: parseInt(fw.dataset.apfwd, 10) }); await apLoad(); } catch (er) { alert("Could not forward: " + apErr(er)); fw.disabled = false; fw.textContent = "Forward now"; }
     return;
   }
+  // the open button in a row (keyboard: Enter or Space, native to <button>)
+  const ob = t.closest(".ap-open");
+  if (ob) { const otr = ob.closest("tr[data-apthread]"); if (otr) { const [kind, rid] = otr.dataset.apthread.split(":"); apThread(kind, parseInt(rid, 10)); } return; }
   // a Responses / Live feed row opens its conversation; buttons and links inside keep doing their own thing
   const tr = t.closest("tr[data-apthread]");
   if (tr && !t.closest("button, a, input")) { const [kind, rid] = tr.dataset.apthread.split(":"); apThread(kind, parseInt(rid, 10)); }
 });
 document.addEventListener("keydown", async (e) => {
   if (e.key === "Escape" && $("ap-modal").style.display === "flex") apCloseModal();
-  // F11: a focused conversation row opens with Enter or Space, like a button
-  if ((e.key === "Enter" || e.key === " ") && e.target && e.target.matches && e.target.matches("tr[data-apthread]")) {
-    e.preventDefault(); const [kind, rid] = e.target.dataset.apthread.split(":"); apThread(kind, parseInt(rid, 10));
-  }
+  if (e.key === "Escape" && $("ap-test-modal").style.display === "flex") apCloseTest();
   if (e.key === "Enter" && e.target && e.target.classList && e.target.classList.contains("ap-cap")) {
     // Q03: confirm the cap change, naming the mailbox and the old and new caps; cancelling puts the old value back
     const el = e.target, was = el.dataset.old, now = el.value.trim();
