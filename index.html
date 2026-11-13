@@ -278,6 +278,7 @@
       <div id="ap-banners"></div>
       <p id="ap-sub" style="margin:10px 0 0;line-height:1.55;font-size:14px;">Loading…</p>
       <div id="ap-tiles" class="ap-tiles"></div>
+      <div id="ap-work" class="ap-tiles ap-work" style="display:none"></div>
 
       <div class="ap-h">Responses <span id="ap-resp-sub" class="hint" style="margin:0;font-weight:400;text-transform:none;"></span></div>
       <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px;">
@@ -495,14 +496,14 @@ async function refreshStats() {
     const base = [
       ["companies", s.companies], ["with domain", s.with_domain], ["ATS found", s.ats_identified],
       ["live postings", s.active_postings], ["checked today", s.checked_today],
-      ["SB credits used", usage.sb_used], ["ZB emails verified", usage.zb_used]
-    ].map(([l, v]) => '<div class="chip"><b>' + fmt(v) + '</b><span>' + l + '</span></div>').join("");
+      ["SB credits used", usage.sb_used, 1], ["ZB emails verified", usage.zb_used, 1]
+    ].map(([l, v, cost]) => '<div class="chip' + (cost ? ' cost' : '') + '"><b>' + fmt(v) + '</b><span>' + l + '</span></div>').join("");   // v1.3.5 (Ops v1.19.0): "cost" chips hide inside Operations with dedupe (Costs owns spend)
     // Q16: build the whole row first and write it once, keeping the last $ chips if that call fails,
     // so the row never drops chips and shifts between refreshes or tabs
     try {
       const lu = await rpc("llm_usage_summary", { p_passcode: passcode });
       if (Array.isArray(lu)) llmChipsHtml = lu.map((m) =>
-        '<div class="chip"><b>$' + Number(m.usd).toFixed(2) + '</b><span>' + esc(m.model) + ' (month)</span></div>').join("");
+        '<div class="chip cost"><b>$' + Number(m.usd).toFixed(2) + '</b><span>' + esc(m.model) + ' (month)</span></div>').join("");
     } catch (e) { /* llm chips best-effort: keep the previous ones */ }
     $("chips").innerHTML = base + llmChipsHtml;
   } catch (e) { /* stats refresh is non-critical */ }
@@ -980,7 +981,10 @@ function apPaint() {
   $("ap-refreshed").textContent = "Last refreshed " + d.at.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
   // status pill
   const pill = $("ap-status"), sending = on("cold_send_enabled") && active.length;
-  pill.textContent = sending ? "Sending" : on("cold_send_enabled") ? "On, no active mailbox" : "Off";
+  // v1.3.5 (Ops v1.19.0) (audit bug 1): "Sending" showed outside the send window while Performance said "Outside send hours"
+  const ctNow = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", weekday: "short", hour: "numeric", hourCycle: "h23" }).formatToParts(new Date()).map((x) => [x.type, x.value]));
+  const inWin = !/Sat|Sun/.test(ctNow.weekday) && Number(ctNow.hour) >= parseInt(c.cold_send_hour_start || "8", 10) && Number(ctNow.hour) < parseInt(c.cold_send_hour_end || "18", 10);
+  pill.textContent = sending ? (inWin ? "Switch ON · sending now" : "Switch ON · outside send hours") : on("cold_send_enabled") ? "On, no active mailbox" : "Off";
   pill.className = "ap-pill " + (sending ? "ok" : on("cold_send_enabled") ? "warn" : "off");
   // banners
   const warn = (t) => '<div class="ap-banner warn">' + t + "</div>";
@@ -1002,12 +1006,21 @@ function apPaint() {
     tile("Emails sent", apN(s.total), apN(s.leads) + " people emailed", "var(--rule)"),
     tile("Sent today", apN(s.today), "since midnight CT", "var(--ink)"),
     tile("Sent this week", apN(s.week), "since Monday", "var(--ink)"),
-    tile("Bounced", apN(d.bounced), pct(d.bounced, s.total), rate > 0.05 ? "var(--red)" : "var(--amber)"),
+    // v1.3.5 (Ops v1.19.0) (audit bug 4, Luke's go 11/13): with the parity function the tile counts the Bounces chip's rows (last 30 days), like the Hub's 1.35.126
+    rc ? tile("Bounced", apN(rc.bounce), "last " + d.responses_window_days + " days", rate > 0.05 ? "var(--red)" : "var(--amber)")
+      : tile("Bounced", apN(d.bounced), pct(d.bounced, s.total), rate > 0.05 ? "var(--red)" : "var(--amber)"),
     // v1.3.4: with the parity function the reply tiles count the Responses rows (last 30 days), so each tile equals its chip
     tile("Replies", apN(rc ? rc.replies : rp.total), rc ? "last " + d.responses_window_days + " days" : pct(rp.total, s.total), "var(--green)"),
     tile("Positive or neutral", apN(rc ? rc.pn : rp.positive_neutral), apN(rc ? (d.responses || []).filter((r) => respIsReply(r.kind) && r.sentiment === "positive_neutral" && r.alerted_at).length : rp.forwarded) + " forwarded", "var(--green)"),
     tile("Negative", apN(rc ? rc.neg : rp.negative), "not interested", "var(--red)"),
     tile("Opted out", apN(rc ? rc.opt : rp.opted_out), "never emailed again", "var(--red)"),
+  ].join("");
+  // v1.3.5 (Ops v1.19.0) (Luke 11/13, D1 + D4): inside Operations with dedupe (jac-embed.js shows it) a work strip replaces the tiles.
+  // Replies to forward = the rows that show "Forward now" below; paused = mailboxes switched off here.
+  const toFwd = (d.responses || []).filter((r) => respIsReply(r.kind) && r.sentiment === "positive_neutral" && !r.alerted_at).length;
+  $("ap-work").innerHTML = [
+    tile("Replies to forward", apN(toFwd), toFwd ? "positive or neutral, not sent to the team yet" : "all forwarded", toFwd ? "var(--green)" : "var(--rule)"),
+    tile("Mailboxes paused", apN(boxes.length - active.length), apN(active.length) + " of " + apN(boxes.length) + " switched on", boxes.length - active.length ? "var(--amber)" : "var(--rule)"),
   ].join("");
 
   // Responses
@@ -1107,7 +1120,7 @@ function apPaint() {
   if (document.activeElement !== $("ap-unknown")) $("ap-unknown").checked = c.cold_unknown_size_allowed === "true";
   if ($("ap-sig-prev").dataset.v !== (d.signature_html || "")) { $("ap-sig-prev").srcdoc = d.signature_html || ""; $("ap-sig-prev").dataset.v = d.signature_html || ""; }
   $("ap-skips").innerHTML = (d.skip_reasons || []).length ? '<table class="ap-table"><tbody>' + d.skip_reasons.map((x) => "<tr><td>" + esc(AP_SKIP[x.reason] || x.reason || "") + '</td><td class="ap-num" style="width:80px">' + apN(x.n) + "</td></tr>").join("") + "</tbody></table>" : '<div class="hint">Nothing set aside yet.</div>';
-  $("ap-weekly").innerHTML = (d.weekly || []).length ? '<table class="ap-table"><thead><tr><th>Week of</th><th class="ap-num">First emails</th><th class="ap-num">Follow-ups</th><th class="ap-num">Replied</th><th class="ap-num">Reply rate</th><th class="ap-num">Failed</th></tr></thead><tbody>' + d.weekly.map((w) =>
+  $("ap-weekly").innerHTML = (d.weekly || []).length ? '<table class="ap-table"><thead><tr><th>Week of</th><th class="ap-num">First emails</th><th class="ap-num">Follow-ups</th><th class="ap-num" title="People emailed that week who replied, whenever the reply came (v1.3.5). Replies by the day they arrived are on the Operations Performance tab.">People who replied</th><th class="ap-num">Reply rate</th><th class="ap-num">Failed</th></tr></thead><tbody>' + d.weekly.map((w) =>
     "<tr><td>" + esc(w.week) + '</td><td class="ap-num">' + apN(w.first_touches) + '</td><td class="ap-num">' + apN(w.follow_ups) + '</td><td class="ap-num">' + apN(w.replied_contacts) + '</td><td class="ap-num">' + (w.first_touches ? (100 * w.replied_contacts / w.first_touches).toFixed(1) + "%" : "–") + '</td><td class="ap-num">' + apN(w.failed) + "</td></tr>").join("") + "</tbody></table>" : '<div class="hint">No sends yet.</div>';
 }
 
@@ -1360,6 +1373,6 @@ document.addEventListener("click", async (e) => {
 // Embedded in Operations: already signed in there, so open straight away (the adapter supplies the passcode).
 if (EMBED) { $("gate").style.display = "none"; $("login").onclick(); }
 </script>
-<div id="ver" class="mono">v1.3.4</div>
+<div id="ver" class="mono">v1.3.5</div>
 </body>
 </html>
