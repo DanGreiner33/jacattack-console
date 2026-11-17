@@ -60,6 +60,7 @@
   .ap-pill { display: inline-block; padding: 4px 12px; border: 1px solid var(--ink); font-size: 13px; font-weight: 700; background: var(--paper); }
   .ap-pill.ok { background: var(--green); color: #fff; border-color: var(--green); }
   .ap-pill.warn { background: var(--amber); }
+  .ap-banner.note { border-color: var(--amber); color: #7a5200; background: #FFF3D1; }
   .ap-banner { border: 1px solid var(--red); color: var(--red); padding: 6px 10px; margin: 8px 0 0; font-size: 13px; background: var(--paper); }
   .ap-wrap { background: var(--paper); border: 1px solid var(--rule); overflow-x: auto; max-width: 100%; }
   table.ap-table { table-layout: fixed; width: 100%; }
@@ -939,6 +940,8 @@ const AP_SKIP = { not_microsoft: "Their email isn't on Microsoft", no_job_title:
   cold_excluded: "Company is excluded", competitor: "A competitor", suppression_list: "On the suppression list", over_staff_cap: "500 or more employees",
   size_unknown: "No employee count on record", posting_too_old: "Posting older than 30 days", posting_not_fresh: "Undated posting first seen over 14 days ago",
   no_company_match: "Could not match the company", claim_expired: "Send did not finish", company_flag: "Company flagged since it was found" };
+// v1.3.6: what kind of pause a mailbox carries, from its paused_reason text (moved: switched to another engine on purpose; rest: a planned pause by a person; hold: the health check; other: anything else)
+const apPauseKind = (r) => /^\s*moved (to|from)\b/i.test(String(r || "")) ? "moved" : /^\s*(warmforge|held):/i.test(String(r || "")) ? "hold" : /^\s*paused\b[^:]*\bby\s+\S+:/i.test(String(r || "")) ? "rest" : "other";
 const AP_KIND = { reply: ["REPLY", "emailed"], colleague_reply: ["COLLEAGUE", "emailed"], opt_out: ["OPT-OUT", "wont"], bounce: ["BOUNCE", "wont"], left: ["LEFT THE COMPANY", "wont"], ooo: ["OUT OF OFFICE", "looking"], sender_blocked: ["MAILBOX BLOCKED", "wont"] };
 
 function apErr(e) {
@@ -987,10 +990,18 @@ function apPaint() {
   pill.textContent = sending ? (inWin ? "Switch ON · sending now" : "Switch ON · outside send hours") : on("cold_send_enabled") ? "On, no active mailbox" : "Off";
   pill.className = "ap-pill " + (sending ? "ok" : on("cold_send_enabled") ? "warn" : "off");
   // banners
-  const warn = (t) => '<div class="ap-banner warn">' + t + "</div>";
+  const warn = (t, cls) => '<div class="ap-banner ' + (cls || "warn") + '">' + t + "</div>";
   let b = "";
   if (!c.cold_signature_html) b += warn("No signature is set, so sending cannot be turned on. Add it under <b>Behind the scenes</b>.");
-  boxes.filter((m) => !m.active && m.connected_at && m.paused_reason && !/^connected:/.test(m.paused_reason)).forEach((m) => { b += warn("<b>" + esc(m.email) + "</b> is paused: " + esc(m.paused_reason)); });
+  // v1.3.6: a red banner only for what needs a look and clears itself when the condition clears. A box moved to another engine on purpose is not an alert
+  // (no banner, a grey MOVED pill); a planned rest (paused ... by <name>) is an amber note; a health-check hold or any other pause stays red.
+  boxes.filter((m) => !m.active && m.connected_at && m.paused_reason && !/^connected:/.test(m.paused_reason)).forEach((m) => {
+    const k = apPauseKind(m.paused_reason);
+    if (k === "moved") return;
+    if (k === "rest") b += warn("<b>" + esc(m.email) + "</b> is resting: " + esc(m.paused_reason), "note");
+    else if (k === "hold") b += warn("<b>" + esc(m.email) + "</b> is held by the health check and returns by itself when it passes: " + esc(m.paused_reason));
+    else b += warn("<b>" + esc(m.email) + "</b> is paused: " + esc(m.paused_reason));
+  });
   if (on("cold_send_enabled") && !on("cold_inbox_watch_enabled")) b += warn("Sending is on but the reply watcher is off, so replies would not be read or forwarded. Turn it on under <b>Behind the scenes</b>.");
   $("ap-banners").innerHTML = b;
   // summary line
@@ -1089,7 +1100,7 @@ function apPaint() {
   $("ap-mb").innerHTML = shownBoxes.length ? shownBoxes.map((m) => {
     let pillHtml, note;
     if (m.active) { pillHtml = '<span class="ap-state emailed">SENDING</span>'; note = m.next_slot ? "next send around " + esc(apHhmm(m.next_slot)) : "no more sends planned today"; }
-    else if (m.connected_at && m.paused_reason && !/^connected:/.test(m.paused_reason)) { pillHtml = '<span class="ap-state wont">PAUSED</span>'; note = esc(m.paused_reason); }
+    else if (m.connected_at && m.paused_reason && !/^connected:/.test(m.paused_reason)) { const k = apPauseKind(m.paused_reason); pillHtml = k === "moved" ? '<span class="ap-state looking">MOVED</span>' : k === "rest" ? '<span class="ap-state next">RESTING</span>' : k === "hold" ? '<span class="ap-state wont">HELD</span>' : '<span class="ap-state wont">PAUSED</span>'; note = esc(m.paused_reason); }
     else if (m.connected_at) { pillHtml = '<span class="ap-state emailed">CONNECTED</span>'; note = "ready: press Activate to start sending"; }
     else { pillHtml = '<span class="ap-state looking">NOT CONNECTED</span>'; note = esc((m.last_error || "run Test connection").slice(0, 160)); }
     return "<tr><td><b>" + apAddr(m.email) + "</b> " + pillHtml + '<div class="ap-why">' + (m.display_name ? esc(m.display_name) + " · " : "") + note + '</div></td><td class="ap-num">' + apN(m.total) + '</td><td class="ap-num">' + apN(m.today) + "/" +
@@ -1373,6 +1384,6 @@ document.addEventListener("click", async (e) => {
 // Embedded in Operations: already signed in there, so open straight away (the adapter supplies the passcode).
 if (EMBED) { $("gate").style.display = "none"; $("login").onclick(); }
 </script>
-<div id="ver" class="mono">v1.3.5</div>
+<div id="ver" class="mono">v1.3.6</div>
 </body>
 </html>
