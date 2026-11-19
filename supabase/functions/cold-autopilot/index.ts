@@ -6,7 +6,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 // Actions (body.action), all gated by app_config worker_token:
 //   send_tick     (cron, every minute)   sends the slots planned for the next minute, each at its own second (20+ s apart)
 //   watch_tick    (cron, every 10 min)   reads the cold mailboxes, classifies, suppresses, forwards positive replies
-//   refresh_leads (cron, every 15 min)   turns new scan batches into ready / skipped cold_leads
+//   refresh_leads (cron, every 3 min)    turns new scan batches into ready / skipped cold_leads (in slices of 125 hits)
 //   test_mailbox, thread, forward        called by console-api for the Autopilot tab
 // Mailboxes: send_mailboxes where lane = 'cold'. Ledger: contact_touches (source 'cold_autopilot').
 // Graph: app-only (client credentials), the multitenant Entra app in COLD_MS_TENANT_ID / COLD_MS_CLIENT_ID /
@@ -204,6 +204,53 @@ const FOREIGN_TLD = /[.](?!us$)[a-z]{2}$/i;
 const domainOf = (e: string) => (e.split("@")[1] || "").toLowerCase();
 
 // ---------- leads: pull new scan batches into cold_leads ----------
+// 11/19: cold_ingest_hits on one 746-hit batch ran past the 8 s statement limit on every run (batch 716 retried forever).
+// The batch now goes in slices of INGEST_SLICE hits, each its own statement. cold_ingest_hits writes cold_batches_seen at the
+// end of every call, so: the row as it was before the batch is read first; if any slice fails, that row is put back (or removed
+// when there was none) so the batch is picked up again next run; when every slice succeeds, the row gets the batch totals.
+// Re-running a slice is safe (cold_leads insert is ON CONFLICT DO NOTHING).
+const INGEST_SLICE = 125;
+// INGEST_SLICED_START
+type SeenRow = { batch_id: number; processed_at: string; new_leads: number; ready_leads: number };
+type IngestDeps = {
+  ingest: (id: number, slice: unknown[]) => Promise<{ data: unknown; error: { message: string } | null }>;
+  readSeen: (id: number) => Promise<{ data: SeenRow | null; error: { message: string } | null }>;
+  setTotals: (id: number, n: number, ready: number) => Promise<{ error: { message: string } | null }>;
+  restoreSeen: (id: number, prior: SeenRow | null) => Promise<{ error: { message: string } | null }>;
+};
+async function ingestSliced(id: number, hits: unknown[], deps: IngestDeps, size = INGEST_SLICE) {
+  const prior = await deps.readSeen(id);
+  if (prior.error) return { batch: id, error: "seen read: " + prior.error.message.slice(0, 100) };
+  const slices: unknown[][] = [];
+  for (let i = 0; i < hits.length; i += size) slices.push(hits.slice(i, i + size));
+  if (!slices.length) slices.push([]); // an empty batch still gets its seen row, as before
+  let n = 0, ready = 0;
+  for (let k = 0; k < slices.length; k++) {
+    const { data, error } = await deps.ingest(id, slices[k]);
+    if (error) {
+      const r = k > 0 ? await deps.restoreSeen(id, prior.data) : { error: null };
+      return { batch: id, error: `slice ${k + 1}/${slices.length}: ` + error.message.slice(0, 100), ingested: n,
+        ...(r.error ? { restore_error: r.error.message.slice(0, 100) } : {}) };
+    }
+    const d = (data ?? {}) as { new_leads?: number; ready?: number };
+    n += Number(d.new_leads) || 0; ready += Number(d.ready) || 0;
+  }
+  if (slices.length > 1) {
+    const t = await deps.setTotals(id, n, ready);
+    if (t.error) return { batch: id, new_leads: n, ready, slices: slices.length, totals_error: t.error.message.slice(0, 100) };
+  }
+  return { batch: id, new_leads: n, ready, slices: slices.length };
+}
+// INGEST_SLICED_END
+const coldIngestDeps: IngestDeps = {
+  ingest: async (id, slice) => await sb.rpc("cold_ingest_hits", { p_batch_id: id, p_hits: slice }),
+  readSeen: async (id) => await sb.from("cold_batches_seen").select("batch_id, processed_at, new_leads, ready_leads").eq("batch_id", id).maybeSingle(),
+  setTotals: async (id, n, ready) => await sb.from("cold_batches_seen").update({ new_leads: n, ready_leads: ready }).eq("batch_id", id),
+  restoreSeen: async (id, prior) => prior
+    ? await sb.from("cold_batches_seen").update({ processed_at: prior.processed_at, new_leads: prior.new_leads, ready_leads: prior.ready_leads }).eq("batch_id", id)
+    : await sb.from("cold_batches_seen").delete().eq("batch_id", id),
+};
+
 async function refreshLeads(cfg: Cfg) {
   const started = Date.now();
   const hours = Math.max(24, parseInt(cfg.cold_batch_window_hours || "96", 10) || 96);
@@ -215,8 +262,7 @@ async function refreshLeads(cfg: Cfg) {
     // two statements so each gets its own time limit: the scan's hit query, then our filters on its result
     const { data: hits, error: e1 } = await sb.rpc("batch_hits_internal", { p_batch_id: id });
     if (e1) { done.push({ batch: id, error: "hits: " + e1.message.slice(0, 100) }); continue; }
-    const { data, error } = await sb.rpc("cold_ingest_hits", { p_batch_id: id, p_hits: hits });
-    done.push(error ? { batch: id, error: error.message.slice(0, 120) } : data);
+    done.push(await ingestSliced(id, (hits ?? []) as unknown[], coldIngestDeps));
   }
   return { expired_claims: expired, batches: done, remaining: ((todo ?? []) as number[]).length - done.length };
 }
