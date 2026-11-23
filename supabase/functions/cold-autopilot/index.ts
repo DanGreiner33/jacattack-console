@@ -540,11 +540,20 @@ function replyBody(text: string): string {
   if (cut.length) t = t.slice(0, Math.min(...cut));
   return t.slice(0, 1500);
 }
-export function isPositiveReply(own: string): boolean {
+// 11/23 (Luke, option B for now): a reply with an attachment, or one that mentions an RFQ / request for quote or quotation / quote /
+// proposal request, is also forwarded (Chartiers Center RFQ #2250853 was held back as "not a yes"). Not after a "no" (NEG_SEND, POS_NEG).
+// Tightened (Luke via Master 11/23, after a phishing lure with "want a quote" passed): a plain "quote" alone does NOT pass. It counts only in
+// the same sentence as request / requesting / RFQ.
+const POS_RFQ_STRONG = /\b(rfqs?|requests? for (a )?quot(e|es|ation|ations)|proposal requests?|requests? for (a )?proposals?)\b/i;
+const POS_QUOTE = /\bquot(e|es|ation|ations)\b/i;
+const POS_REQ = /\b(request(s|ed|ing)?|rfqs?)\b/i;
+const POS_RFQ = { test: (s: string) => POS_RFQ_STRONG.test(s) || String(s).split(/[.!?\n]+/).some((x) => POS_QUOTE.test(x) && POS_REQ.test(x)) };
+export function isPositiveReply(own: string, opts?: { hasAttachments?: boolean; subject?: string }): boolean {
   const t = replyBody(own);
   if (NEG_SEND.test(t)) return false;
   if (POS_STRONG.test(t) || POS_PRICE.test(t) || POS_AGREE.test(t)) return true;
-  return POS_REFERRAL.test(t) && !POS_NEG.test(t);
+  if (POS_REFERRAL.test(t) && !POS_NEG.test(t)) return true;
+  return !POS_NEG.test(t) && (!!opts?.hasAttachments || POS_RFQ.test(t) || POS_RFQ.test(String(opts?.subject || "")));
 }
 
 export function replySentiment(own: string, fromEmail: string): "positive_neutral" | "negative" {
@@ -577,10 +586,26 @@ async function messageText(box: string, id: string, field: "uniqueBody" | "body"
   return String(j?.[field]?.content ?? "");
 }
 
+// FORWARD_HEADER_START
+// Luke 11/23: a forward opens with Hiring Company / Recruiting Company / Role URL, recorded data only.
+// JacAttack records the hiring company (cold_leads.company_name) and the posting URL (cold_leads.job_url) but NOT which
+// recruiting firm posted it (its leads come from job boards, not recruiter ads), so Recruiting Company is "not recorded".
+function forwardHeader(lead: any, fallbackCompany: string | null, escf: (x: unknown) => string) {
+  const clean = (x: unknown) => String(x ?? "").replace(/\s+/g, " ").trim();
+  const hiring = clean(lead?.company_name || fallbackCompany) || "not recorded";
+  const rec = clean(lead?.recruiting_company) || "not recorded";
+  const url = clean(lead?.job_url);
+  const safe = /^https?:\/\/\S+$/i.test(url) ? url : "";
+  const row = (l: string, v: string) => `<p style="margin:0 0 3px"><b>${l}:</b> ${v}</p>`;
+  const link = safe ? `<a href="${escf(safe).replace(/"/g, "&quot;")}">${escf(safe)}</a>` : escf(url || "not recorded");
+  return `<div style="margin:0 0 16px;padding:0 0 10px;border-bottom:1px solid #ccc">${row("Hiring Company", escf(hiring))}${row("Recruiting Company", escf(rec))}${row("Role URL", link)}</div>`;
+}
+// FORWARD_HEADER_END
+
 // v15 (Luke 11/5, approved example): a positive reply goes to lsmith@ and ghalsey@ (cold_reply_alert_to) as info@fclabz.com through the
 // n8n mailer: one note line, THEIR REPLY on top, then the rest of the conversation most recent first down to our first outreach.
 // Our own internal forwards (mail from the box to lsmith@ or ghalsey@) are left out of the thread. Sent once: callers mark alerted_at.
-async function alertReply(cfg: Cfg, box: string, ev: any, touch: any, company: string | null, text: string): Promise<boolean> {
+async function alertReply(cfg: Cfg, box: string, ev: any, touch: any, company: string | null, text: string, lead?: any): Promise<boolean> {
   const to = String(cfg.cold_reply_alert_to || "").trim();
   if (!/@/.test(to) || !cfg.health_mail_url || !cfg.health_mail_token) return false;
   const role = String(touch?.subject ?? ev.subject ?? "").replace(/^(re:\s*)+/i, "").replace(/\s*-\s*opening\s*$/i, "");
@@ -604,7 +629,7 @@ async function alertReply(cfg: Cfg, box: string, ev: any, touch: any, company: s
   const reply = msgs.find((m: any) => m.id === ev.graph_id) ?? msgs.filter((m: any) => String(m?.from?.emailAddress?.address || "").toLowerCase() !== box.toLowerCase()).pop();
   const rest = msgs.filter((m: any) => m !== reply).reverse();
   const top = reply ? block(reply, "THEIR REPLY") : `<div style="margin:0 0 14px"><p style="margin:0 0 4px;font-size:12px;color:#555"><b>THEIR REPLY</b></p><div style="border-left:3px solid #0a7f5f;padding:4px 12px;white-space:pre-wrap">${esc(String(text || ev.snippet || "").trim().slice(0, 4000))}</div></div>`;
-  const html = `<div style="font-family:Aptos,Calibri,Helvetica,sans-serif;font-size:14px;color:#111;max-width:760px"><p style="margin:0 0 14px"><b>${esc(note)}</b></p>${top}${rest.length ? `<p style="margin:6px 0 10px;color:#555;font-size:12px">Below: the rest of the conversation, most recent first, down to our first outreach.</p>${rest.map((m: any) => block(m)).join("")}` : ""}</div>`;
+  const html = `<div style="font-family:Aptos,Calibri,Helvetica,sans-serif;font-size:14px;color:#111;max-width:760px">${forwardHeader(lead, company, esc)}<p style="margin:0 0 14px"><b>${esc(note)}</b></p>${top}${rest.length ? `<p style="margin:6px 0 10px;color:#555;font-size:12px">Below: the rest of the conversation, most recent first, down to our first outreach.</p>${rest.map((m: any) => block(m)).join("")}` : ""}</div>`;
   try {
     const r = await fetch(cfg.health_mail_url, { method: "POST", signal: AbortSignal.timeout(30000),
       headers: { "Content-Type": "application/json", "x-health-token": cfg.health_mail_token },
@@ -621,7 +646,7 @@ async function watchMailbox(cfg: Cfg, box: string, ourBoxes: Set<string>) {
   const since = new Date(lastEv?.[0] ? new Date(lastEv[0].received_at).getTime() - 3600e3 : new Date(firstT![0].sent_at).getTime()).toISOString();
   const { data: knownRows } = await sb.from("inbox_events").select("graph_id").eq("mailbox", box).gte("received_at", since).limit(5000);
   const known = new Set((knownRows ?? []).map((r) => r.graph_id));
-  const sel = "id,conversationId,receivedDateTime,from,subject,bodyPreview,internetMessageHeaders";
+  const sel = "id,conversationId,receivedDateTime,from,subject,bodyPreview,hasAttachments,internetMessageHeaders";
   let url: string | null = `/mailFolders/inbox/messages?$filter=${enc(`receivedDateTime ge ${since}`)}&$orderby=receivedDateTime asc&$top=50&$select=${sel}`;
   const started = Date.now();
   while (url && stat.read < 1500 && Date.now() - started < 90e3) {
@@ -685,9 +710,9 @@ async function watchMailbox(cfg: Cfg, box: string, ourBoxes: Set<string>) {
         await sb.from("contact_touches").update({ replied_at: m.receivedDateTime, reply_checked_at: now }).eq("id", touch.id).is("replied_at", null);
         if (touch.company_id != null) await sb.from("contact_touches").update({ stopped_at: now, stop_reason: "company_replied" }).eq("company_id", touch.company_id).eq("source", SOURCE).is("stopped_at", null).is("replied_at", null);
       }
-      if (sentiment === "positive_neutral" && touch && isPositiveReply(own)) {
-        const { data: lead } = touch.lead_id ? await sb.from("cold_leads").select("company_name").eq("id", touch.lead_id).maybeSingle() : { data: null };
-        if (await alertReply(cfg, box, { ...ev, kind }, touch, lead?.company_name ?? null, own)) await sb.from("inbox_events").update({ alerted_at: new Date().toISOString() }).eq("id", ins.id);
+      if (sentiment === "positive_neutral" && touch && isPositiveReply(own, { hasAttachments: !!m.hasAttachments, subject: m.subject })) {
+        const { data: lead } = touch.lead_id ? await sb.from("cold_leads").select("company_name,job_url").eq("id", touch.lead_id).maybeSingle() : { data: null };
+        if (await alertReply(cfg, box, { ...ev, kind }, touch, lead?.company_name ?? null, own, lead)) await sb.from("inbox_events").update({ alerted_at: new Date().toISOString() }).eq("id", ins.id);
       }
     }
   }
@@ -771,10 +796,10 @@ async function forwardEvent(cfg: Cfg, id: number) {
   const { data: e } = await sb.from("inbox_events").select("*").eq("id", id).maybeSingle();
   if (!e) throw new Error("That reply is not in the records");
   const { data: touch } = e.matched_touch_id ? await sb.from("contact_touches").select("*").eq("id", e.matched_touch_id).maybeSingle() : { data: null };
-  const { data: lead } = touch?.lead_id ? await sb.from("cold_leads").select("company_name").eq("id", touch.lead_id).maybeSingle() : { data: null };
+  const { data: lead } = touch?.lead_id ? await sb.from("cold_leads").select("company_name,job_url").eq("id", touch.lead_id).maybeSingle() : { data: null };
   let text = e.snippet || "";
   try { text = (await messageText(e.mailbox, e.graph_id)).split(QUOTE_SPLIT)[0] || text; } catch { /* snippet will do */ }
-  const ok = await alertReply(cfg, e.mailbox, e, touch, lead?.company_name ?? null, text);
+  const ok = await alertReply(cfg, e.mailbox, e, touch, lead?.company_name ?? null, text, lead);
   if (!ok) throw new Error("The forward did not send. Check the forward-to addresses in Settings and that " + e.mailbox + " is connected.");
   await sb.from("inbox_events").update({ alerted_at: new Date().toISOString() }).eq("id", id);
   return { ok: true, to: cfg.cold_reply_alert_to };
