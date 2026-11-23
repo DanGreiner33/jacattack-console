@@ -522,6 +522,31 @@ const YES = /((happy|glad|open|willing) to (take a look|look|review|engage|talk|
 const RECRUITER_DOMAIN_RE = /(staffing|recruit|(?<!re)search|talent|workforce|personnel|placement|headhunt|careers|(?<!s)hire)/i;
 const EMAIL_RE = /[A-Z0-9._%+'-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 const QUOTE_SPLIT = /\n?(From:|-----Original Message|On .{0,80} wrote:)/i;
+// DEFANG_START
+// Luke 11/23: links inside a forwarded reply or thread are made INERT (the Chartiers RFQ link to an unrelated domain was quarantined, and any lure we
+// forward could be clicked). Our own header links (Role URL) are not touched. Same code as the Hub's lib/defang.js; keep the two in step.
+const URL_RE = /\b(?:https?|ftp):\/\/[^\s<>"'()\]]+|\bwww\.[^\s<>"'()\]]+/gi;
+function defangText(s: unknown): string {
+  return String(s == null ? "" : s).replace(URL_RE, (u: string) => {
+    const m = u.match(/^((?:[a-z]+):\/\/)?([^\/?#]*)([\s\S]*)$/i)!;
+    const scheme = (m[1] || "").replace(/^http/i, "hxxp").replace(/^ftp/i, "fxp");
+    return scheme + m[2].replace(/\./g, "[.]") + m[3];
+  });
+}
+function defangHtml(html: unknown): string {
+  let h = String(html == null ? "" : html);
+  h = h.replace(/<a\b[^>]*?\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>([\s\S]*?)<\/a\s*>/gi, (all: string, a: string, b: string, c: string, inner: string) => {
+    const href = String(a != null ? a : b != null ? b : c || "").replace(/&amp;/g, "&").trim();
+    if (!/^(?:https?:|ftp:|\/\/|www\.)/i.test(href)) return all;
+    const shown = inner.replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").trim();
+    const d = defangText(href.replace(/^\/\//, "https://"));
+    return defangText(inner) + (defangText(shown) === d ? "" : " (" + d.replace(/&/g, "&amp;").replace(/</g, "&lt;") + ")");
+  });
+  h = h.replace(/<img\b[^>]*\bsrc\s*=\s*["']?(?:https?:)?\/\/[^>]*>/gi, "[remote image removed]");
+  return defangText(h);
+}
+// DEFANG_END
+
 // v15 (Luke 11/5): only a reply that asks to talk, asks about fees or information, or points to the right person is forwarded.
 const POS_STRONG = /(fee structure|your fees?\b|(what|how) (are|is) your (fee|terms|rates?|pricing)|let me know (your|the) (fees?|rates?|terms|pricing)|(?<!not )(?<!n't )(?<!un)\binterested (in|to)\b|\bi'?m interested|we'?re interested|(would|'d) (like|love) to (talk|connect|chat|discuss|learn|hear|meet|speak)|happy to (talk|chat|connect|discuss|take a look|review|meet|speak)|open to (a |an )?(call|chat|talk|discuss|connecting|conversation)|(set up|schedule|hop on|jump on|book|arrange) (a |an )?(call|time|meeting|chat|intro)|give (me|us) a call|call me\b|let'?s (talk|chat|connect|discuss|set up|schedule)|(please |kindly )?send (me |us |over )?(more )?(info|information|details|candidates|resumes|profiles|your (agreement|contract|terms|fee))|can you (send|share)|share (your|an?) (updated )?(resume|profile|info)|(when|what time) (are you|can we) (free|available|talk|connect))/i;
 const POS_REFERRAL = /(you (may|can|should|could) (reach out|contact|speak|talk|email|call)|(please |kindly )?(contact|reach out to|email|call|speak (to|with)) (our|my|the) [a-z &-]{0,30}(hr|human resources|recruit|talent|hiring|department|team|manager|director|vp|president)|forwarded (this|your)|i('| ha)ve (forwarded|passed)|looping in|cc'?ing|copying (you|him|her|them|us|our [a-z]+|my [a-z]+|the [a-z]+|[\w.+-]+@[\w.-]+))/i;
@@ -658,12 +683,13 @@ async function alertReply(cfg: Cfg, box: string, ev: any, touch: any, company: s
   const block = (m: any, label?: string) => {
     const ours = String(m?.from?.emailAddress?.address || "").toLowerCase() === box.toLowerCase();
     let b = String(m?.body?.content || "").replace(/<script[\s\S]*?<\/script>/gi, "");
-    if (m?.body?.contentType !== "html") b = `<pre style="white-space:pre-wrap;font:inherit">${esc(b)}</pre>`;
+    if (m?.body?.contentType === "html") b = defangHtml(b);
+    if (m?.body?.contentType !== "html") b = `<pre style="white-space:pre-wrap;font:inherit">${esc(defangText(b))}</pre>`;
     return `<div style="margin:0 0 14px"><p style="margin:0 0 4px;font-size:12px;color:#555"><b>${label || (ours ? "OUR EMAIL" : "THEIR MESSAGE")}</b> &middot; ${esc(m?.from?.emailAddress?.name || "")} &lt;${esc(m?.from?.emailAddress?.address || "")}&gt; &middot; ${esc(when(stamp(m)))}</p><div style="border-left:3px solid ${ours ? "#9ca3af" : "#0a7f5f"};padding:4px 12px">${b}</div></div>`;
   };
   const reply = msgs.find((m: any) => m.id === ev.graph_id) ?? msgs.filter((m: any) => String(m?.from?.emailAddress?.address || "").toLowerCase() !== box.toLowerCase()).pop();
   const rest = msgs.filter((m: any) => m !== reply).reverse();
-  const top = reply ? block(reply, "THEIR REPLY") : `<div style="margin:0 0 14px"><p style="margin:0 0 4px;font-size:12px;color:#555"><b>THEIR REPLY</b></p><div style="border-left:3px solid #0a7f5f;padding:4px 12px;white-space:pre-wrap">${esc(String(text || ev.snippet || "").trim().slice(0, 4000))}</div></div>`;
+  const top = reply ? block(reply, "THEIR REPLY") : `<div style="margin:0 0 14px"><p style="margin:0 0 4px;font-size:12px;color:#555"><b>THEIR REPLY</b></p><div style="border-left:3px solid #0a7f5f;padding:4px 12px;white-space:pre-wrap">${esc(defangText(String(text || ev.snippet || "").trim().slice(0, 4000)))}</div></div>`;
   const html = `<div style="font-family:Aptos,Calibri,Helvetica,sans-serif;font-size:14px;color:#111;max-width:760px">${forwardHeader(lead, company, esc)}<p style="margin:0 0 14px"><b>${esc(note)}</b></p>${top}${rest.length ? `<p style="margin:6px 0 10px;color:#555;font-size:12px">Below: the rest of the conversation, most recent first, down to our first outreach.</p>${rest.map((m: any) => block(m)).join("")}` : ""}</div>`;
   try {
     const r = await fetch(cfg.health_mail_url, { method: "POST", signal: AbortSignal.timeout(30000),
