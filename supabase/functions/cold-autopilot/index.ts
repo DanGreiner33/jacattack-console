@@ -542,7 +542,12 @@ function replyBody(text: string): string {
 }
 // 11/23 (Luke, option B for now): a reply with an attachment, or one that mentions an RFQ / request for quote or quotation / quote /
 // proposal request, is also forwarded (Chartiers Center RFQ #2250853 was held back as "not a yes"). Not after a "no" (NEG_SEND, POS_NEG).
-const POS_RFQ = /\b(rfqs?|requests? for (a )?quot(e|es|ation|ations)|quot(e|es|ation|ations)|proposal requests?|requests? for (a )?proposals?)\b/i;
+// Tightened (Luke via Master 11/23, after a phishing lure with "want a quote" passed): a plain "quote" alone does NOT pass. It counts only in
+// the same sentence as request / requesting / RFQ.
+const POS_RFQ_STRONG = /\b(rfqs?|requests? for (a )?quot(e|es|ation|ations)|proposal requests?|requests? for (a )?proposals?)\b/i;
+const POS_QUOTE = /\bquot(e|es|ation|ations)\b/i;
+const POS_REQ = /\b(request(s|ed|ing)?|rfqs?)\b/i;
+const POS_RFQ = { test: (s: string) => POS_RFQ_STRONG.test(s) || String(s).split(/[.!?\n]+/).some((x) => POS_QUOTE.test(x) && POS_REQ.test(x)) };
 export function isPositiveReply(own: string, opts?: { hasAttachments?: boolean; subject?: string }): boolean {
   const t = replyBody(own);
   if (NEG_SEND.test(t)) return false;
