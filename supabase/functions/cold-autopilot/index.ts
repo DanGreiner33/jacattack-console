@@ -519,7 +519,7 @@ const DECLINE_MORE = new RegExp([
   "(cancel+ed|eliminated|paused|closed) (the |this |that )?(position|role|search|req(uisition)?|opening)",
 ].join("|"), "i");
 const YES = /((happy|glad|open|willing) to (take a look|look|review|engage|talk|chat|discuss|connect|consider|work|see)|send (me |over |us )?(the |your )?(agreement|contract|terms|fee|rates?)|(attach(ed|ing)|here is|here's) (a copy of )?(the |our )?(job description|jd)|(set up|schedule|hop on|jump on) (a )?(call|time|meeting)|(please|feel free to|go ahead and) send (me |us |over )?(any |your )?(candidates|resumes|profiles)|what (are|is) your (fee|terms|rates?))/i;
-const RECRUITER_DOMAIN_RE = /(staffing|recruit|(?<!re)search|talent|workforce|personnel|placement|headhunt)/i;
+const RECRUITER_DOMAIN_RE = /(staffing|recruit|(?<!re)search|talent|workforce|personnel|placement|headhunt|careers|(?<!s)hire)/i;
 const EMAIL_RE = /[A-Z0-9._%+'-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 const QUOTE_SPLIT = /\n?(From:|-----Original Message|On .{0,80} wrote:)/i;
 // v15 (Luke 11/5): only a reply that asks to talk, asks about fees or information, or points to the right person is forwarded.
@@ -556,10 +556,36 @@ export function isPositiveReply(own: string, opts?: { hasAttachments?: boolean; 
   return !POS_NEG.test(t) && (!!opts?.hasAttachments || POS_RFQ.test(t) || POS_RFQ.test(String(opts?.subject || "")));
 }
 
+// 11/23 (Luke: "a ton of responses that are clearly not interested still get tagged positive/neutral"): more ways people say no, from real
+// replies (Hub bd_inbox_events 3606 4425 4488 6110 6146 3931 4780; JacAttack inbox_events 4686 4774 4795 4796 4798 4824 4851 5291 5297 8060 9093 11009 11036 13810).
+// Identical in the Hub (lib/bd-sender.js) and JacAttack (cold-autopilot). A YES phrase still outranks all of them.
+const DECLINE_V2 = new RegExp([
+  "not in the market",
+  "(application|applications|posting|search|position|role) (was |were |has been |have been )?closed",
+  "not (currently )?(using|utili[sz]ing) (any )?(outside|external) (sources|resources|vendors)",
+  "(we'?ve|we have|we) got (this|it) covered|we'?ve got this",
+  "handle (all |most )?(of )?(our |the )?(hiring|recruiting) (efforts )?(through|in[- ]house|internally)",
+  "in receipt of your resume|qualified applicants will be (scheduled|contacted)",
+  "(only )?hire (w-?2 )?(employees )?direct(ly)?|only hire",
+  "final stages of interviewing|actively interviewing",
+  "(don'?t|do not) need (any )?(additional|more|extra)",
+  "(do not|don'?t|doesn'?t) (currently |presently )?(have|need) (any |an? )?(open(ings?)?|positions?|roles?|vacanc(y|ies)|need)\\b",
+  "(do not|don'?t) (anticipate|expect|foresee) (needing|a need)",
+  "not (currently )?(utili[sz]ing|using|considering|seeking|accepting|engaging|working with) (any |additional |outside |non-local |external |third[- ]party )*(agenc(y|ies)|recruit(ers?|ing)|search (resources|firms?)|vendors?|resources|partners|assistance|help|services)",
+  "(no|not|don'?t need) (any )?(additional |extra |outside |external )(recruiting |search )?(help|assistance|resources|support)\\b|no (extra |additional |outside )?(help|assistance) (is |was )?(needed|necessary)",
+  "(do|handle|manage|run|conduct)(es)? (all |most )?(of )?(our|my) (own )?(recruiting|hiring|openings)|(recruit(ing|ers?)|hiring|openings?)[^.]{0,40}(internally|in[- ]house)|(our own|own) recruit(ing|ers?)|(never|don'?t|do not) use outside|covered in[- ]house|handled (in[- ]house|internally|through our hr)",
+  "(we|i) (are|am|'re) (currently )?(using|working with) (a|an|our) (recruiter|agency|search firm|staffing)|using a recruiter",
+  "(position|role|job|opening|it|this) (is|has been|was|'s) filled\\b|(did|have|has) fill(ed)? (our|the|this) (opening|position|role)",
+  "(that|this|it) (is|'s) not (ours|our (job|posting|listing|opening|position|role|company))|(wrong|different) (orion|company|listing|job|posting)|confused (a |this )?(listing|posting|job|company)|looking at the wrong|listing by another company",
+  "(have|having|got) (three|two|four|several|multiple|many|a few) (different )?(other )?(staffing )?(agenc(y|ies)|recruiters)",
+  "(we|you) (are|'re) a (staffing|recruiting) firm",
+].join("|"), "i");
+const DECLINE_BARE_NO = /^\s*(no|nope|nah)\b(?!\s*(problem|worries|rush|issue))/i;
 export function replySentiment(own: string, fromEmail: string): "positive_neutral" | "negative" {
-  const t = String(own || "").replace(/\s+/g, " ");
+  // curly apostrophes (Outlook on phones) read as straight ones, as in the Hub (10/26)
+  const t = String(own || "").replace(/[‘’]/g, "'").replace(/\s+/g, " ");
   if (RECRUITER_DOMAIN_RE.test(domainOf(fromEmail))) return "negative";
-  if ((DECLINE.test(t) || DECLINE_MORE.test(t)) && !YES.test(t)) return "negative";
+  if ((DECLINE.test(t) || DECLINE_MORE.test(t) || DECLINE_V2.test(t) || DECLINE_BARE_NO.test(t) || NEG_SEND.test(t)) && !YES.test(t)) return "negative";
   return "positive_neutral";
 }
 export function classify(m: any, ourBoxes: Set<string>): { kind: string; why: string } {
@@ -710,7 +736,8 @@ async function watchMailbox(cfg: Cfg, box: string, ourBoxes: Set<string>) {
         await sb.from("contact_touches").update({ replied_at: m.receivedDateTime, reply_checked_at: now }).eq("id", touch.id).is("replied_at", null);
         if (touch.company_id != null) await sb.from("contact_touches").update({ stopped_at: now, stop_reason: "company_replied" }).eq("company_id", touch.company_id).eq("source", SOURCE).is("stopped_at", null).is("replied_at", null);
       }
-      if (sentiment === "positive_neutral" && touch && isPositiveReply(own, { hasAttachments: !!m.hasAttachments, subject: m.subject })) {
+      // 11/23 (Luke): every positive_neutral reply forwards, as in the Hub; the sentiment read (DECLINE_V2 etc.) is the only gate. isPositiveReply is no longer used here.
+      if (sentiment === "positive_neutral" && touch) {
         const { data: lead } = touch.lead_id ? await sb.from("cold_leads").select("company_name,job_url").eq("id", touch.lead_id).maybeSingle() : { data: null };
         if (await alertReply(cfg, box, { ...ev, kind }, touch, lead?.company_name ?? null, own, lead)) await sb.from("inbox_events").update({ alerted_at: new Date().toISOString() }).eq("id", ins.id);
       }
