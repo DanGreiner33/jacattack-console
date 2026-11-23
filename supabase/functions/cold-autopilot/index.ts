@@ -540,11 +540,15 @@ function replyBody(text: string): string {
   if (cut.length) t = t.slice(0, Math.min(...cut));
   return t.slice(0, 1500);
 }
-export function isPositiveReply(own: string): boolean {
+// 11/23 (Luke, option B for now): a reply with an attachment, or one that mentions an RFQ / request for quote or quotation / quote /
+// proposal request, is also forwarded (Chartiers Center RFQ #2250853 was held back as "not a yes"). Not after a "no" (NEG_SEND, POS_NEG).
+const POS_RFQ = /\b(rfqs?|requests? for (a )?quot(e|es|ation|ations)|quot(e|es|ation|ations)|proposal requests?|requests? for (a )?proposals?)\b/i;
+export function isPositiveReply(own: string, opts?: { hasAttachments?: boolean; subject?: string }): boolean {
   const t = replyBody(own);
   if (NEG_SEND.test(t)) return false;
   if (POS_STRONG.test(t) || POS_PRICE.test(t) || POS_AGREE.test(t)) return true;
-  return POS_REFERRAL.test(t) && !POS_NEG.test(t);
+  if (POS_REFERRAL.test(t) && !POS_NEG.test(t)) return true;
+  return !POS_NEG.test(t) && (!!opts?.hasAttachments || POS_RFQ.test(t) || POS_RFQ.test(String(opts?.subject || "")));
 }
 
 export function replySentiment(own: string, fromEmail: string): "positive_neutral" | "negative" {
@@ -637,7 +641,7 @@ async function watchMailbox(cfg: Cfg, box: string, ourBoxes: Set<string>) {
   const since = new Date(lastEv?.[0] ? new Date(lastEv[0].received_at).getTime() - 3600e3 : new Date(firstT![0].sent_at).getTime()).toISOString();
   const { data: knownRows } = await sb.from("inbox_events").select("graph_id").eq("mailbox", box).gte("received_at", since).limit(5000);
   const known = new Set((knownRows ?? []).map((r) => r.graph_id));
-  const sel = "id,conversationId,receivedDateTime,from,subject,bodyPreview,internetMessageHeaders";
+  const sel = "id,conversationId,receivedDateTime,from,subject,bodyPreview,hasAttachments,internetMessageHeaders";
   let url: string | null = `/mailFolders/inbox/messages?$filter=${enc(`receivedDateTime ge ${since}`)}&$orderby=receivedDateTime asc&$top=50&$select=${sel}`;
   const started = Date.now();
   while (url && stat.read < 1500 && Date.now() - started < 90e3) {
@@ -701,7 +705,7 @@ async function watchMailbox(cfg: Cfg, box: string, ourBoxes: Set<string>) {
         await sb.from("contact_touches").update({ replied_at: m.receivedDateTime, reply_checked_at: now }).eq("id", touch.id).is("replied_at", null);
         if (touch.company_id != null) await sb.from("contact_touches").update({ stopped_at: now, stop_reason: "company_replied" }).eq("company_id", touch.company_id).eq("source", SOURCE).is("stopped_at", null).is("replied_at", null);
       }
-      if (sentiment === "positive_neutral" && touch && isPositiveReply(own)) {
+      if (sentiment === "positive_neutral" && touch && isPositiveReply(own, { hasAttachments: !!m.hasAttachments, subject: m.subject })) {
         const { data: lead } = touch.lead_id ? await sb.from("cold_leads").select("company_name,job_url").eq("id", touch.lead_id).maybeSingle() : { data: null };
         if (await alertReply(cfg, box, { ...ev, kind }, touch, lead?.company_name ?? null, own, lead)) await sb.from("inbox_events").update({ alerted_at: new Date().toISOString() }).eq("id", ins.id);
       }
