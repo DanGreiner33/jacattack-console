@@ -581,6 +581,15 @@ const DECLINE_V2 = new RegExp([
   "(we|you) (are|'re) a (staffing|recruiting) firm",
 ].join("|"), "i");
 const DECLINE_BARE_NO = /^\s*(no|nope|nah)\b(?!\s*(problem|worries|rush|issue))/i;
+// 11/23 (Luke): a reply whose own text is essentially only a shared-document / encrypted-message / view-file notice (a phishing lure) is HELD:
+// not auto-forwarded, still shown with "Forward now". Narrow on purpose: any recruiting wording or a longer message is not held.
+const LINK_ONLY_LURE = /(new (encrypted )?document|encrypted (message|document|file)|shared (a |the )?(document|file)|shared via (onedrive|sharepoint|dropbox|google drive|docusign)|view (the )?(document|file|message)|invitation is valid only for you)/i;
+const LINK_ONLY_BUSINESS = /(resume|candidate|\bfees?\b|agreement|position|opening|interested|hiring|\brole\b|\bjobs?\b|search|recruit)/i;
+const LINK_ONLY_FIRST_PERSON = /\b(i|we|i've|we've|i have|we have)\b[^.?!]{0,25}\bshared\b/i;
+export function isLinkOnlyNotice(own: string): boolean {
+  const t = String(own || "").replace(/[‘’]/g, "'").replace(/\s+/g, " ").trim();
+  return t.length <= 450 && !LINK_ONLY_FIRST_PERSON.test(t) && LINK_ONLY_LURE.test(t) && !LINK_ONLY_BUSINESS.test(t);
+}
 export function replySentiment(own: string, fromEmail: string): "positive_neutral" | "negative" {
   // curly apostrophes (Outlook on phones) read as straight ones, as in the Hub (10/26)
   const t = String(own || "").replace(/[‘’]/g, "'").replace(/\s+/g, " ");
@@ -737,7 +746,7 @@ async function watchMailbox(cfg: Cfg, box: string, ourBoxes: Set<string>) {
         if (touch.company_id != null) await sb.from("contact_touches").update({ stopped_at: now, stop_reason: "company_replied" }).eq("company_id", touch.company_id).eq("source", SOURCE).is("stopped_at", null).is("replied_at", null);
       }
       // 11/23 (Luke): every positive_neutral reply forwards, as in the Hub; the sentiment read (DECLINE_V2 etc.) is the only gate. isPositiveReply is no longer used here.
-      if (sentiment === "positive_neutral" && touch) {
+      if (sentiment === "positive_neutral" && touch && !isLinkOnlyNotice(own)) {
         const { data: lead } = touch.lead_id ? await sb.from("cold_leads").select("company_name,job_url").eq("id", touch.lead_id).maybeSingle() : { data: null };
         if (await alertReply(cfg, box, { ...ev, kind }, touch, lead?.company_name ?? null, own, lead)) await sb.from("inbox_events").update({ alerted_at: new Date().toISOString() }).eq("id", ins.id);
       }

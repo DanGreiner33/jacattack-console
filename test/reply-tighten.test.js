@@ -8,7 +8,7 @@ const fs = require('fs'), path = require('path');
 const { stripTypeScriptTypes } = require('node:module');
 const src = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'functions', 'cold-autopilot', 'index.ts'), 'utf8');
 const a = src.indexOf('const DECLINE = '), b = src.indexOf('export function classify');
-const { replySentiment } = new Function("const domainOf=(e)=>String(e||'').split('@')[1]||'';" + stripTypeScriptTypes(src.slice(a, b).replace(/^export /gm, '')) + ';return {replySentiment}')();
+const { replySentiment, isLinkOnlyNotice } = new Function("const domainOf=(e)=>String(e||'').split('@')[1]||'';" + stripTypeScriptTypes(src.slice(a, b).replace(/^export /gm, '')) + ';return {replySentiment,isLinkOnlyNotice}')();
 const rows = [
  {
   "repo": "hub",
@@ -429,6 +429,17 @@ test('yes outranks a no phrase; bare "No problem" is not a decline; curly apostr
 });
 test('the auto-forward no longer uses the isPositiveReply gate', () => {
   const w = src.slice(src.indexOf('async function watchMailbox') > -1 ? src.indexOf('async function watchMailbox') : 0);
-  assert.ok(/sentiment === "positive_neutral" && touch\) \{/.test(src), 'gate removed');
+  assert.ok(/sentiment === "positive_neutral" && touch && !isLinkOnlyNotice\(own\)\) \{/.test(src), 'gate removed');
   assert.ok(!/sentiment === "positive_neutral" && touch && isPositiveReply/.test(src));
+});
+
+const PHISH = "You've a New Document shared via OneDrive View Document © This invitation is valid only for you and individuals who already have access. This is Paul Nadler's card. Their email is Paul@Nadlerinsurance.com. Need to a change or want a quote,";
+test('link-only phishing notice (9641) is held; all R replies are not held; N replies read negative', () => {
+  assert.strictEqual(isLinkOnlyNotice(PHISH), true);
+  assert.strictEqual(isLinkOnlyNotice('You have a new encrypted message. View file'), true);
+  assert.strictEqual(isLinkOnlyNotice('Please see the shared document and send resumes'), false);
+  assert.strictEqual(isLinkOnlyNotice('Please see the attached document(s). RFQ #2250853 - Chartiers Center.pdf We appreciate your business.'), false);
+  let rs = 0;
+  for (const r of rows) { if (r.mark === 'R') { rs++; assert.strictEqual(isLinkOnlyNotice(r.text), false, 'R held: ' + r.id); assert.strictEqual(replySentiment(r.text, r.from), 'positive_neutral'); } if (r.mark === 'N') assert.strictEqual(replySentiment(r.text, r.from), 'negative'); }
+  assert.strictEqual(rs, 24); // all R fixtures (the Master said 36; the stored marks hold 24 R, 34 N, 4 U)
 });
